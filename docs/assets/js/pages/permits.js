@@ -33,7 +33,7 @@
     ${rows.map((x, i) => `
       <tr class="row-in" style="animation-delay:${Math.min(i, 20) * 35}ms">
         <td class="p-no nowrap">${E(x.permit_no)}</td>
-        <td>${WP.statusBadge(x.es)}${x.status === 'pending' && x.stage && x.stage !== 'safety' ? '<br>' + WP.stageBadge(x) : ''}</td>
+        <td>${WP.statusBadge(x.es)}${x.status === 'pending' && x.stage && x.stage !== 'safety' ? '<br>' + WP.stageBadge(x) : ''}${x.work_done_at && x.status === 'approved' ? '<br><span class="badge st-done mt1" title="ผู้รับเหมาแจ้งเสร็จงานแล้ว — รอตรวจสอบและปิดงาน"><i class="fa-solid fa-camera"></i> แจ้งเสร็จงาน</span>' : ''}</td>
         <td>${E(x.requester_name)}<br><small class="muted">${E(x.requester_company)} · ${E(D.permitTypes[x.permit_type] || '')}</small></td>
         <td>${WP.wtTags(x.work_types)}</td>
         <td>${E(x.location)}</td>

@@ -22,7 +22,7 @@
     return `<span class="badge ${s.cls}"><i class="fa-solid ${s.icon}"></i> ${s.label}</span>`;
   };
 
-  /** Pending permits in the approval workflow: which stage (0–3) they wait at. */
+  /** Pending permits in the approval workflow: which stage (1–3) they wait at. */
   WP.stageBadge = p => {
     const st = p && p.status === 'pending' && D.stages && D.stages[p.stage];
     if (!st) return '';
@@ -94,7 +94,8 @@
   WP.timelineHTML = logs => {
     const map = {
       submit: ['ยื่นใบขออนุญาต', ''], approve: ['จป. อนุมัติ', ''], reject: ['ไม่อนุมัติ', 'reject'], close: ['ปิดงาน', 'close'], review: ['บันทึกการตรวจสอบ', ''], edit: ['จป. แก้ไขข้อมูล', ''],
-      assign_area: ['ผู้รับผิดชอบงานระบุเจ้าของพื้นที่', ''], area_approve: ['เจ้าของพื้นที่อนุมัติ', ''], resp_approve: ['ผู้รับผิดชอบงานอนุมัติ', ''], reassign: ['จป. มอบหมายผู้อนุมัติใหม่', ''], inspect: ['ลงชื่อการตรวจสอบ', '']
+      assign_area: ['ผู้รับผิดชอบงานระบุเจ้าของพื้นที่', ''], area_approve: ['เจ้าของพื้นที่อนุมัติ', ''], resp_approve: ['ผู้รับผิดชอบงานอนุมัติ', ''], reassign: ['จป. มอบหมายผู้อนุมัติใหม่', ''], inspect: ['ลงชื่อการตรวจสอบ', ''],
+      work_done: ['แจ้งเสร็จงาน', '']
     };
     return '<div class="timeline">' + (logs || []).map((l, i) => {
       const [t, c] = map[l.action] || [l.action, ''];
@@ -104,17 +105,19 @@
 
   /**
    * Approval workflow progress (permits with a responsible): every stage with its
-   * time. Shows stage names and timestamps only — no names, no signatures.
+   * time, in the order ผู้รับผิดชอบงาน (1) → เจ้าของพื้นที่ (2) → จป. (3). Step i = stage
+   * no, so a permit started before the order changed (area owner first, then the
+   * legacy stage "resp" = 1) is shown on the same steps with their own times.
+   * Shows stage names and timestamps only — no names, no signatures.
    */
   WP.workflowStepsHTML = p => {
     const st = p.status, stg = D.stages || {};
-    const rejectAt = st === 'rejected' ? ({ assign: 1, area: 2, resp: 3, safety: 4 }[p.reject_stage] || 4) : -1;
-    const curAt = st === 'pending' ? (stg[p.stage] ? stg[p.stage].no + 1 : 4) : (st === 'approved' ? 4 : -1);
+    const rejectAt = st === 'rejected' ? ((stg[p.reject_stage] || stg.safety).no) : -1;
+    const curAt = st === 'pending' ? (stg[p.stage] || stg.safety).no : (st === 'approved' ? stg.safety.no : -1);
     const steps = [
       ['fa-paper-plane', 'ยื่นคำขอ', p.created_at],
-      [stg.assign.icon, stg.assign.short, p.area_assigned_at],
+      [stg.assign.icon, stg.assign.short, p.resp_approved_at],
       [stg.area.icon, stg.area.short, p.area_approved_at],
-      [stg.resp.icon, stg.resp.short, p.resp_approved_at],
       [stg.safety.icon, st === 'approved' || st === 'closed' ? 'จป. อนุมัติ / ปฏิบัติงาน' : stg.safety.short, ['approved', 'closed'].includes(st) ? p.approved_at : ''],
       ['fa-flag-checkered', 'ปิดงาน', p.closed_at]
     ];
@@ -174,6 +177,59 @@
     root.querySelectorAll('[data-attachment]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); WP.openAttachment(params); }));
     root.querySelectorAll('[data-item-file]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); WP.openAttachment(Object.assign({}, params, { fid: a.dataset.itemFile })); }));
   };
+  // ---------- approvals table: one column "อนุมัติและตรวจสอบก่อนเริ่มงาน" ----------
+  // replaces "การอนุญาตทำงาน (ผู้อนุมัติ)" + "ก่อนเริ่มงาน" + "ระหว่างทำงาน" on the view page
+  // (print.html keeps the paper form's four columns). Stamps of the retired columns
+  // (older permits) are shown as small extra lines so nothing is lost.
+  WP.INSP_MERGED_LABEL = 'อนุมัติและตรวจสอบก่อนเริ่มงาน';
+  WP.INSP_MERGED_STAGES = ['before', 'during'];
+  /** [{sk, label, name, at}] — the before / during stamps of row rk (none for new permits). */
+  WP.inspLegacyLines = (ins, rk) => WP.INSP_MERGED_STAGES.map(sk => {
+    const c = ((ins || {})[rk] || {})[sk];
+    return c && typeof c === 'object' && c.name ? { sk, label: String(D.inspectStages[sk] || sk).replace(/^การตรวจสอบ\s*/, ''), name: String(c.name), at: c.at || '' } : null;
+  }).filter(Boolean);
+  WP.inspLegacyHTML = (ins, rk) => WP.inspLegacyLines(ins, rk).map(l =>
+    `<small class="insp-extra"><i class="fa-solid fa-stamp"></i> ${E(l.label)}: ${E(l.name)}${l.at ? ' · ' + WP.thaiDate(l.at, true) : ''}</small>`).join('');
+
+  // ---------- "แจ้งเสร็จงาน" (the contractor, action work_done) ----------
+  /** The requester may report the work done: approved (also past its work window), not yet reported. */
+  WP.canReportWorkDone = p => !!p && p.status === 'approved' && !p.work_done_at;
+  WP.workDoneBadge = p => p && p.work_done_at && p.status === 'approved'
+    ? '<span class="badge st-done" title="ผู้รับเหมาแจ้งเสร็จงานแล้ว — รอ จป. ตรวจสอบและปิดงาน"><i class="fa-solid fa-camera"></i> ผู้รับเหมาแจ้งเสร็จงานแล้ว</span>' : '';
+  // browsers show these inline (HEIC / TIFF are offered as a download)
+  const WD_INLINE = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'];
+  const WD_THUMB_MAX = 4 * 1048576; // larger photos are not fetched just for a thumbnail
+  /** Card with the report: time, note, photo tiles (thumbnails load via action=file). '' when not reported. */
+  WP.workDoneHTML = p => {
+    if (!p || !p.work_done_at) return '';
+    const ph = Array.isArray(p.work_done_photos) ? p.work_done_photos : [];
+    return `<div class="card mb2 reveal wd-card" id="work-done">
+    <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-camera ic-bob"></i></span><h3>แจ้งเสร็จงาน</h3><span class="spacer"></span><span class="badge st-done"><i class="fa-solid fa-circle-check"></i> ผู้รับเหมาแจ้งเสร็จงานแล้ว</span></div>
+    <div class="card-b">
+      <p class="text2 mt0"><i class="fa-regular fa-clock"></i> แจ้งเมื่อ ${WP.thaiDate(p.work_done_at, true)}${p.status === 'approved' ? ' <span class="muted">· รอ จป. ตรวจสอบและปิดงาน</span>' : ''}</p>
+      ${p.work_done_note ? `<p class="text2"><b>หมายเหตุ:</b> ${WP.nl2br(p.work_done_note)}</p>` : ''}
+      <div class="wd-photos">${ph.map(f => `<a href="#" class="wd-ph" data-wd-photo="${E(f.fid)}" data-mime="${E(f.mime)}" data-size="${+f.size || 0}" title="${E(f.name)} — เปิด / ดาวน์โหลด">
+        <span class="wd-thumb"><i class="fa-solid fa-image"></i></span><span class="wd-nm">${E(f.name)}</span></a>`).join('')}</div>
+    </div>
+  </div>`;
+  };
+  /** Click → open the photo; thumbnails of browser-viewable photos are fetched one by one. params = {id} | {no, t}. */
+  WP.bindWorkDonePhotos = (root, params) => {
+    const tiles = [...root.querySelectorAll('[data-wd-photo]')];
+    tiles.forEach(a => a.addEventListener('click', e => { e.preventDefault(); WP.openAttachment(Object.assign({}, params, { fid: a.dataset.wdPhoto })); }));
+    const todo = tiles.filter(a => WD_INLINE.includes(a.dataset.mime) && +a.dataset.size <= WD_THUMB_MAX);
+    (async () => {
+      for (const a of todo) {
+        const r = await WP.api('file', Object.assign({}, params, { fid: a.dataset.wdPhoto }), { quiet: true });
+        if (!r.ok || !r.data || !r.data.inline) continue;
+        const img = document.createElement('img');
+        img.alt = ''; img.src = `data:${r.data.mimeType};base64,${r.data.base64}`;
+        const th = a.querySelector('.wd-thumb');
+        th.textContent = ''; th.appendChild(img); th.classList.add('has-img');
+      }
+    })();
+  };
+
   /** permit.item_files grouped by checklist item, in form order: [{item, label, files}] (older permits: []). */
   WP.itemFileGroups = p => {
     const files = Array.isArray(p.item_files) ? p.item_files : [], out = [];

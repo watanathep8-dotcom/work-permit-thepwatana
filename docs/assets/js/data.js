@@ -37,6 +37,19 @@ var WP_DATA = {
     ],
     "itemFileMax": 5,
     "requestMaxMb": 25,
+    "workDonePhotoMax": 10,
+    "workDonePhotoExt": [
+      "jpg",
+      "jpeg",
+      "png",
+      "gif",
+      "webp",
+      "heic",
+      "heif",
+      "bmp",
+      "tif",
+      "tiff"
+    ],
     "defaultPosition": "เจ้าหน้าที่ความปลอดภัย (จป.วิชาชีพ)",
     "checklistVersion": 2,
     "formTitle": "ใบขออนุญาตปฏิบัติงาน",
@@ -979,25 +992,18 @@ var WP_DATA = {
   },
   "stages": {
     "assign": {
-      "no": 0,
-      "label": "รอระบุเจ้าของพื้นที่",
-      "short": "ระบุเจ้าของพื้นที่",
-      "role": "responsible",
-      "icon": "fa-user-tag"
-    },
-    "area": {
       "no": 1,
-      "label": "รอเจ้าของพื้นที่อนุมัติ",
-      "short": "เจ้าของพื้นที่อนุมัติ",
-      "role": "area_owner",
-      "icon": "fa-map-location-dot"
-    },
-    "resp": {
-      "no": 2,
       "label": "รอผู้รับผิดชอบงานอนุมัติ",
       "short": "ผู้รับผิดชอบงานอนุมัติ",
       "role": "responsible",
       "icon": "fa-user-tie"
+    },
+    "area": {
+      "no": 2,
+      "label": "รอเจ้าของพื้นที่อนุมัติ",
+      "short": "เจ้าของพื้นที่อนุมัติ",
+      "role": "area_owner",
+      "icon": "fa-map-location-dot"
     },
     "safety": {
       "no": 3,
@@ -1005,11 +1011,19 @@ var WP_DATA = {
       "short": "จป. อนุมัติ",
       "role": "safety",
       "icon": "fa-user-shield"
+    },
+    "resp": {
+      "no": 1,
+      "label": "รอผู้รับผิดชอบงานอนุมัติ",
+      "short": "ผู้รับผิดชอบงานอนุมัติ",
+      "role": "responsible",
+      "icon": "fa-user-tie",
+      "legacy": true
     }
   },
   "inspectRoles": {
-    "owner": "1. เจ้าของพื้นที่โครงการ",
-    "contractor": "2. ผู้รับผิดชอบงาน",
+    "contractor": "1. ผู้รับผิดชอบงาน",
+    "owner": "2. เจ้าของพื้นที่โครงการ",
     "safety": "3. เจ้าหน้าที่ความปลอดภัย"
   },
   "inspectStages": {

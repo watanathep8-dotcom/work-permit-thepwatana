@@ -39,6 +39,12 @@ passed += at.passed;
 failures.push(...at.failures);
 console.log(`checklist item files e2e: ${at.passed} passed, ${at.failures.length} failed (${Date.now() - ta} ms)`);
 
+const td = Date.now();
+const wdt = require('./workdone.test.js')();
+passed += wdt.passed;
+failures.push(...wdt.failures);
+console.log(`work done (แจ้งเสร็จงาน) + merged approvals column e2e: ${wdt.passed} passed, ${wdt.failures.length} failed (${Date.now() - td} ms)`);
+
 // 2 ---------------------------------------------------------------------------
 const gsData = fs.readFileSync(path.join(ROOT, 'apps-script', 'Data.gs'), 'utf8');
 const jsData = fs.readFileSync(path.join(ROOT, 'docs', 'assets', 'js', 'data.js'), 'utf8');

@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-<link rel="stylesheet" href="assets/css/app.css?v=8">
+<link rel="stylesheet" href="assets/css/app.css?v=9">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x26D1;&#xFE0F;</text></svg>">
 </head>
 <body data-layout="public" data-active="request" data-title="ขอใบอนุญาตปฏิบัติงาน" data-edit-layout="admin" data-edit-active="list" data-edit-title="แก้ไขข้อมูลใบอนุญาต">
@@ -96,7 +96,7 @@
     <div class="card-b grid g2">
       <div class="field span-all hide" id="resp-field"><label><i class="fa-solid fa-user-check"></i> ผู้รับผิดชอบงาน (ผู้อนุมัติ) <span class="req">*</span></label>
         <select class="input" name="responsible_id" id="responsible_id"><option value="">— เลือกผู้รับผิดชอบงาน —</option></select>
-        <div class="hint mt1"><i class="fa-solid fa-route"></i> ลำดับการอนุมัติ: ผู้รับผิดชอบงานระบุเจ้าของพื้นที่ → เจ้าของพื้นที่อนุมัติ → ผู้รับผิดชอบงานอนุมัติ → จป. อนุมัติ (แจ้งเตือนผู้อนุมัติทาง Microsoft Teams)</div></div>
+        <div class="hint mt1"><i class="fa-solid fa-route"></i> ลำดับการอนุมัติ: ผู้รับผิดชอบงานอนุมัติ (และระบุเจ้าของพื้นที่) → เจ้าของพื้นที่อนุมัติ → จป. อนุมัติ (แจ้งเตือนผู้อนุมัติทาง Microsoft Teams)</div></div>
       <div class="field"><label><i class="fa-solid fa-user-tie"></i> ชื่อผู้รับผิดชอบงานโครงการ <span class="req">*</span></label><input class="input" name="owner_name" required placeholder="ผู้รับผิดชอบงานฝั่งบริษัท"></div>
       <div class="field"><label><i class="fa-solid fa-phone-volume"></i> เบอร์โทรศัพท์ (ผู้รับผิดชอบงานโครงการ)</label><input class="input" name="owner_phone" inputmode="tel" placeholder="เบอร์ติดต่อ"></div>
       <div class="field span-all"><label><i class="fa-solid fa-align-left"></i> รายละเอียดงานที่ปฏิบัติ <span class="req">*</span></label><textarea class="input" name="job_detail" required placeholder="อธิบายลักษณะงาน ขอบเขต เครื่องมือ/เครื่องจักรที่ใช้"></textarea></div>
@@ -108,7 +108,7 @@
 
 <!-- ===== STEP 3 ===== -->
 <section class="wz-panel" data-panel="2">
-  <div class="alert info mb2"><i class="fa-solid fa-user-shield ic-beat"></i><div><span id="review-note"></span><br><small>ผู้ขอทำเครื่องหมายรายการที่เตรียมพร้อมแล้วได้ — เจ้าของพื้นที่ / ผู้รับผิดชอบงาน / จป. ตรวจสอบและปรับแก้ตามหน้างานเมื่อพิจารณาอนุมัติ</small></div></div>
+  <div class="alert info mb2"><i class="fa-solid fa-user-shield ic-beat"></i><div><span id="review-note"></span><br><small>ผู้ขอทำเครื่องหมายรายการที่เตรียมพร้อมแล้วได้ — ผู้รับผิดชอบงาน / เจ้าของพื้นที่ / จป. ตรวจสอบและปรับแก้ตามหน้างานเมื่อพิจารณาอนุมัติ</small></div></div>
   <div id="checklist"></div>
   <div class="card mt2 hide" id="loto-card" style="--wc:#facc15">
     <div class="card-h"><span class="ch-ic" style="color:#facc15"><i class="fa-solid fa-lock ic-wiggle"></i></span><h3>ตาราง Lock Out / Tag Out (งานไฟฟ้า)</h3></div>
@@ -167,14 +167,14 @@
 </form>
 </div>
 <script src="config.js"></script>
-<script src="assets/js/data.js?v=8"></script>
+<script src="assets/js/data.js?v=10"></script>
 <script src="assets/js/core.js?v=6"></script>
 <script src="assets/js/layout.js?v=6"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="assets/js/app.js?v=7"></script>
-<script src="assets/js/parts.js?v=8"></script>
+<script src="assets/js/parts.js?v=10"></script>
 <script src="assets/js/pages/request-init.js?v=6"></script>
-<script src="assets/js/request.js?v=8"></script>
+<script src="assets/js/request.js?v=9"></script>
 </body>
 </html>

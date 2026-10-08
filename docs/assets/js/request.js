@@ -176,7 +176,7 @@
     $('#submit').classList.toggle('hide', step !== 3);
     if (step === 2) buildChecklist();
     if (step === 3 && !editId) {
-      // with the approval workflow the ผู้รับผิดชอบงาน signs when approving (stage 2), not on this form
+      // with the approval workflow the ผู้รับผิดชอบงาน signs when approving (stage 1), not on this form
       $('#sig-own').closest('.field').classList.toggle('hide', workflow());
       ['sig-req', 'sig-own'].forEach(id => { if (!pads[id]) pads[id] = new WP.SignaturePad($('#' + id)); });
       $('#submit').innerHTML = workflow() ? '<i class="fa-solid fa-paper-plane"></i> ส่งคำขออนุมัติ' : '<i class="fa-solid fa-paper-plane"></i> ส่งให้ จป. อนุมัติ';
@@ -302,7 +302,7 @@
     const respName = workflow() ? form.responsible_id.selectedOptions[0].textContent : '';
     const ok = await Swal.fire({
       icon: 'question', title: 'ยืนยันส่งใบขออนุญาต?',
-      html: (workflow() ? `ส่งไปยัง <b>ผู้รับผิดชอบงาน: ${WP.esc(respName)}</b> เพื่อเริ่มขั้นตอนอนุมัติ<br>(เจ้าของพื้นที่ → ผู้รับผิดชอบงาน → จป.)`
+      html: (workflow() ? `ส่งไปยัง <b>ผู้รับผิดชอบงาน: ${WP.esc(respName)}</b> เพื่อเริ่มขั้นตอนอนุมัติ<br>(ผู้รับผิดชอบงาน → เจ้าของพื้นที่ → จป.)`
         : 'ส่งไปยัง <b>เจ้าหน้าที่ความปลอดภัย (จป.)</b> เพื่อพิจารณาอนุมัติ') + `<br><small>${WP.esc(data.location)} · ${data.work_date} ${data.time_from}-${data.time_to}</small>`,
       showCancelButton: true, confirmButtonText: '<i class="fa-solid fa-paper-plane"></i> ยืนยันส่ง', cancelButtonText: 'ตรวจสอบอีกครั้ง'
     });

@@ -1,4 +1,4 @@
-// admin/approvals.html — "รออนุมัติของฉัน": the permits whose current stage (0–2)
+// admin/approvals.html — "รออนุมัติของฉัน": the permits whose current stage (1–2)
 // is assigned to the logged-in ผู้รับผิดชอบงาน / เจ้าของพื้นที่, plus recent ones.
 (async () => {
   if (WP.halt) return;
@@ -30,7 +30,7 @@
   <div><h2>สวัสดี, ${E(u.fullname || '')}</h2><div class="meta"><span>${myRoles}</span><span><i class="fa-solid fa-hourglass-half"></i> รออนุมัติของฉัน <b style="color:var(--gold)">${d.count}</b> รายการ</span></div></div>
 </div>
 <div class="card mb2 reveal">
-  <div class="card-h"><span class="ch-ic" style="color:var(--gold)"><i class="fa-solid fa-bell ic-ring"></i></span><h3>รออนุมัติของฉัน</h3><span class="spacer"></span><small class="muted">ขั้นตอน: ${[STG.assign, STG.area, STG.resp].map(s => E(s.short)).join(' → ')} → ${E(STG.safety.short)}</small></div>
+  <div class="card-h"><span class="ch-ic" style="color:var(--gold)"><i class="fa-solid fa-bell ic-ring"></i></span><h3>รออนุมัติของฉัน</h3><span class="spacer"></span><small class="muted">ขั้นตอน: ${[STG.assign, STG.area, STG.safety].map(s => E(s.short)).join(' → ')}</small></div>
   <div class="card-b" style="padding-top:0">
     ${d.pending.length ? d.pending.map(x => row(x, true)).join('') : '<div class="empty"><i class="fa-solid fa-mug-hot"></i>ไม่มีคำขอที่รอท่านอนุมัติ</div>'}
   </div>

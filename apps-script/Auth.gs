@@ -3,8 +3,8 @@
  *
  *  - Roles (column `roles`, comma separated; a user may hold several):
  *      safety      จป. — everything (admin pages, user management, edit/delete/reset, stage 3)
- *      responsible ผู้รับผิดชอบงาน — picks the area owner (stage 0), approves stage 2
- *      area_owner  เจ้าของพื้นที่ — approves stage 1
+ *      responsible ผู้รับผิดชอบงาน — approves stage 1 + picks the area owner
+ *      area_owner  เจ้าของพื้นที่ — approves stage 2
  *    A row with an EMPTY roles cell is a user created before roles existed: they
  *    were all จป., so they count as `safety` (setupSystem() also writes it in).
  *  - requireUser_: any active, logged-in user. requireAdmin_: role safety only

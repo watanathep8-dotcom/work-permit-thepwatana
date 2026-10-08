@@ -53,7 +53,8 @@ module.exports = function run() {
   check('confined (FM-EMR-46) kept', WT.confined.form === 'FM-EMR-46' && item('confined', 'cs4_12').other && item('confined', 'cs6_18').type === 'checktext');
   check('หมายเหตุ 8 / ระเบียบ 9 / ข้อตกลง 2 + กากอุตสาหกรรม', D.remarks.length === 8 && /อับอากาศ/.test(D.remarks[7]) && D.safetyRules.length === 9 &&
     /ก๊าซ/.test(D.safetyRules[7]) && D.safetyAgreement.length === 2 && D.wasteRules.items.length === 1 && D.approvalStatement.length === 3);
-  check('approvals table rows / columns as on the form', Object.values(D.inspectRoles).join('|') === '1. เจ้าของพื้นที่โครงการ|2. ผู้รับผิดชอบงาน|3. เจ้าหน้าที่ความปลอดภัย' &&
+  check('approvals table rows / columns as on the form', Object.values(D.inspectRoles).join('|') === '1. ผู้รับผิดชอบงาน|2. เจ้าของพื้นที่โครงการ|3. เจ้าหน้าที่ความปลอดภัย' &&
+    Object.keys(D.inspectRoles).join() === 'contractor,owner,safety' &&
     Object.keys(D.inspectStages).join() === 'permit,before,during,after');
   // every legacy mapping points at an option that exists now; retired ids are not current ids
   const L = D.checklistLegacy;

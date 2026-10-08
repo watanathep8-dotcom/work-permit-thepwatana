@@ -274,21 +274,30 @@ module.exports = async function run() {
     r = await X.read('poll', {});
     check('FORBIDDEN on an allowed page (view / approvals): no redirect', r.code === 'FORBIDDEN' && ctx.location.href === '');
     X.allowAll = false; X.layout = undefined;
-    r = await X.api('assign_area', { id: sub.data.id, area_owner_id: aid });
-    check('write action wipes the browser cache + works', r.ok && r.data.stage === 'area' && !ss.keys().some((k) => k.startsWith('wpt_swr:')), r);
+    r = await X.api('stage_decide', { id: sub.data.id, decision: 'approve', sign: PNG, area_owner_id: aid });
+    check('write action wipes the browser cache + works (responsible approves first → area owner)', r.ok && r.data.stage === 'area' && !ss.keys().some((k) => k.startsWith('wpt_swr:')), r);
 
     // progress rendering (parts.js): stage names + times only
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'docs/assets/js/parts.js'), 'utf8'), ctx);
     const view = (await X.api('permit', { id: sub.data.id })).data.permit;
     let h = X.trackStepsHTML(view);
     const steps = h.match(/<div class="ts [^"]*"/g) || [];
-    check('progress: 6 workflow steps, 0–1 done, 2 (เจ้าของพื้นที่) current', steps.length === 6 && /\bon\b/.test(steps[0]) && /\bon\b/.test(steps[1]) && /\bcur\b/.test(steps[2]) && !/\bon\b/.test(steps[3]), steps);
-    check('progress: shows the stage times, never approver names', h.includes(X.thaiDate(view.area_assigned_at, true)) && !h.includes('ผู้ใช้ fresp') && !h.includes('ผู้ใช้ farea') && !h.includes('@'), h);
+    check('progress: 5 workflow steps, 0–1 (ผู้รับผิดชอบงาน) done, 2 (เจ้าของพื้นที่) current', steps.length === 5 && /\bon\b/.test(steps[0]) && /\bon\b/.test(steps[1]) && /\bcur\b/.test(steps[2]) && !/\bon\b/.test(steps[3]), steps);
+    check('progress: order ผู้รับผิดชอบงาน → เจ้าของพื้นที่ → จป.', h.indexOf('ผู้รับผิดชอบงานอนุมัติ') > 0 && h.indexOf('ผู้รับผิดชอบงานอนุมัติ') < h.indexOf('เจ้าของพื้นที่อนุมัติ') && h.indexOf('เจ้าของพื้นที่อนุมัติ') < h.indexOf('จป. อนุมัติ'), h);
+    check('progress: shows the stage times, never approver names', h.includes(X.thaiDate(view.resp_approved_at, true)) && !h.includes('ผู้ใช้ fresp') && !h.includes('ผู้ใช้ farea') && !h.includes('@'), h);
+    {
+      // a permit started before the order changed: area owner approved first, now at the legacy stage resp (step 1)
+      const lg = X.trackStepsHTML(Object.assign({}, view, { stage: 'resp', resp_approved_at: '', area_approved_at: '2026-10-05 09:00:00' })).match(/<div class="ts [^"]*"/g);
+      check('progress: legacy stage resp → step 1 current, step 2 done', /\bcur\b/.test(lg[1]) && /\bon\b/.test(lg[2]) && !/\bcur\b/.test(lg[2]), lg);
+    }
     h = X.trackStepsHTML(Object.assign({}, view, { status: 'rejected', reject_stage: 'area', stage: '', approved_at: '2026-10-05 10:00:00' }));
     const st2 = h.match(/<div class="ts [^"]*"/g);
-    check('progress: rejected at stage 1 → that step is "ไม่อนุมัติ"', /\bbad\b/.test(st2[2]) && h.includes('ไม่อนุมัติ') && !/\bbad\b/.test(st2[4]), st2);
+    check('progress: rejected at stage 2 → that step is "ไม่อนุมัติ"', /\bbad\b/.test(st2[2]) && h.includes('ไม่อนุมัติ') && !/\bbad\b/.test(st2[1]) && !/\bbad\b/.test(st2[3]), st2);
+    h = X.trackStepsHTML(Object.assign({}, view, { status: 'rejected', reject_stage: 'assign', stage: '', resp_approved_at: '', approved_at: '2026-10-05 10:00:00' }));
+    check('progress: rejected by the responsible → step 1 "ไม่อนุมัติ"', /\bbad\b/.test((h.match(/<div class="ts [^"]*"/g))[1]));
     check('progress: legacy permit keeps the old 4 steps', (X.trackStepsHTML({ status: 'pending', es: 'pending', workflow: false }).match(/<div class="ts /g) || []).length === 4);
-    check('stage badge only while pending in the workflow', X.stageBadge(view).includes('ขั้นที่ 1') && X.stageBadge(Object.assign({}, view, { status: 'approved' })) === '');
+    check('stage badge only while pending in the workflow', X.stageBadge(view).includes('ขั้นที่ 2: รอเจ้าของพื้นที่อนุมัติ') && X.stageBadge(Object.assign({}, view, { stage: 'assign' })).includes('ขั้นที่ 1: รอผู้รับผิดชอบงานอนุมัติ') &&
+      X.stageBadge(Object.assign({}, view, { status: 'approved' })) === '');
     // checklist item files: staff get open buttons, the requester (status page) names only; older permits nothing
     const pf = Object.assign({}, view, { item_files: [{ fid: 'a'.repeat(16), item: 'h9', name: 'cert<1>.pdf', size: 10 }, { fid: 'b'.repeat(16), item: 'g3', name: 'p.heic', size: 9 }] });
     const hs = X.infoCardHTML(pf, { staff: true }), hp = X.infoCardHTML(pf);

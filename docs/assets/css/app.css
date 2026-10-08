@@ -653,3 +653,26 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
   85.68% { color: #8b5cf6; }
 }
 @media (prefers-reduced-motion: reduce) { .brand-text small.programming-credit { animation: none; color: #22c55e; } }
+
+/* approvals table: merged column "อนุมัติและตรวจสอบก่อนเริ่มงาน" — stamps of the retired before / during columns */
+.insp-cell .insp-extra { display: block; margin-top: 4px; padding-top: 4px; border-top: 1px dashed var(--line); color: var(--text-2); font-size: 11px; }
+.insp-cell .insp-extra i { color: var(--lime); margin-right: 2px; }
+
+/* "แจ้งเสร็จงาน" (contractor) */
+.st-done { color: #d9f99d; border-color: rgba(163, 230, 53, .5); background: rgba(132, 204, 22, .14); }
+.wd-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-top: 10px; }
+.wd-ph { display: flex; flex-direction: column; gap: 4px; color: var(--text-2); text-decoration: none; font-size: 12px; min-width: 0; }
+.wd-ph:hover .wd-thumb { border-color: var(--em-2); transform: translateY(-2px); }
+.wd-thumb { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px solid var(--line-2); background: rgba(2, 18, 10, .5); overflow: hidden; color: var(--em-2); font-size: 26px; transition: .2s; }
+.wd-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wd-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wd-report { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.wd-report p { flex: 1 1 220px; margin: 0; }
+.wd-dlg { text-align: left; font-size: 14px; }
+.wd-dlg .wd-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px; border: 1.5px dashed var(--line-2); border-radius: 14px; cursor: pointer; color: var(--text-2); background: rgba(16, 185, 129, .05); transition: .2s; }
+.wd-dlg .wd-drop:hover, .wd-dlg .wd-drop:focus-within { border-color: var(--em-2); background: rgba(16, 185, 129, .1); }
+.wd-dlg .wd-drop i { font-size: 26px; color: var(--em-2); }
+.wd-dlg .wd-sum { margin: 8px 2px 0; color: var(--text-2); font-size: 12.5px; }
+.wd-dlg .wd-err { color: var(--red); font-size: 12.5px; margin: 6px 2px 0; white-space: pre-line; }
+.wd-dlg .wd-err:empty { display: none; }
+.wd-dlg textarea { width: 100%; min-height: 72px; margin: 10px 0 0 !important; box-sizing: border-box; }

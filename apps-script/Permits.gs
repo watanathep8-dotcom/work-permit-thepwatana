@@ -8,17 +8,27 @@
  *       assigned to (responsible_id / area_owner_id), by `id`, or
  *   (c) the requester holding that permit's tracking token (`no` + `t`).
  *
- * Approval workflow (status stays "pending" until the จป. decides):
+ * Approval workflow (status stays "pending" until the จป. decides) — order
+ * ผู้รับผิดชอบงาน → เจ้าของพื้นที่ → จป.:
  *   submit (requester picks an active "ผู้รับผิดชอบงาน")
- *   → stage assign  "รอระบุเจ้าของพื้นที่"     the assigned responsible picks the area owner (or rejects)
- *   → stage area    "รอเจ้าของพื้นที่อนุมัติ"    the assigned area owner approves (signature) or rejects
- *   → stage resp    "รอผู้รับผิดชอบงานอนุมัติ"   the assigned responsible approves (signature) or rejects
- *   → stage safety  "รอ จป. อนุมัติ"            any จป.: review / approve / reject exactly as before
+ *   → stage assign  (ขั้นที่ 1) "รอผู้รับผิดชอบงานอนุมัติ"  the assigned responsible reviews, ticks the
+ *                    checklist, SIGNS the approval and picks the area owner in one action (or rejects)
+ *   → stage area    (ขั้นที่ 2) "รอเจ้าของพื้นที่อนุมัติ"   the assigned area owner approves (signature) or rejects
+ *   → stage safety  (ขั้นที่ 3) "รอ จป. อนุมัติ"           any จป.: review / approve / reject exactly as before
  *   → approved → inspections / close (expiry counts from the work window, as before)
  * Only the assignee of the current stage may act; a จป. may reassign the
- * responsible / area owner (someone is absent) but never act for them.
+ * responsible (until they approved) / area owner (stage area) but never act for them.
  * A pending permit without responsible_id (created before the workflow, or while
  * no responsible user existed) is at stage "safety" directly.
+ *
+ * In-flight permits from the previous order (area owner first, responsible second)
+ * finish the way they started: a permit at stage "area" whose responsible has NOT
+ * approved yet (no resp_approved_at) goes area → resp (legacy stage, numbered
+ * ขั้นที่ 1 like the responsible's row of the approvals table) → safety; a permit
+ * at "resp" goes resp → safety. A permit at "assign" simply gets the new combined
+ * step. The old action assign_area (a page cached before the update) still works:
+ * it picks the area owner without the responsible's signature, so that permit
+ * then follows the legacy path too — nobody's approval is ever skipped.
  */
 
 var WP_MIME_BY_EXT = {
@@ -308,6 +318,61 @@ function itemFilesOut_(r) {
   });
 }
 
+/** work_done_photos cell → [{fid, name, mime, size, file}] (a missing column / junk → []). */
+function workDonePhotosOf_(r) {
+  var a = jdec_(r && r.work_done_photos, []);
+  return Array.isArray(a) ? a.filter(function (x) { return x && typeof x === 'object' && x.fid && x.file; }) : [];
+}
+
+/** What the API shows: names only — never the Drive id. */
+function workDonePhotosOut_(r) {
+  return workDonePhotosOf_(r).map(function (x) {
+    return { fid: x.fid, name: x.name, mime: x.mime, size: Number(x.size) || 0 };
+  });
+}
+
+/** Every Drive file a permit row references (attachment, signatures, item files, work-done photos). */
+function permitFileIds_(r) {
+  return [r.attachment_file, r.requester_sign_file, r.owner_sign_file, r.approver_sign_file, r.area_sign_file, r.resp_sign_file]
+    .concat(itemFilesOf_(r).map(function (x) { return x.file; }))
+    .concat(workDonePhotosOf_(r).map(function (x) { return x.file; }));
+}
+
+/**
+ * Photos of "แจ้งเสร็จงาน": `list` = [{name, base64}], 1..workDonePhotoMax images
+ * (workDonePhotoExt, content checked like the item files), each ≤ uploadMaxMb,
+ * together ≤ requestMaxMb (base64 keeps the POST well under Apps Script's ~50 MB).
+ * Returns [{name, ext, mime, bytes}] — nothing is stored yet.
+ */
+function checkWorkDonePhotos_(list) {
+  var C = WP_DATA.config;
+  if (!Array.isArray(list) || !list.length) fail_('กรุณาแนบรูปถ่ายเมื่อเสร็จงานอย่างน้อย 1 รูป');
+  if (list.length > C.workDonePhotoMax) fail_('แนบรูปถ่ายได้ไม่เกิน ' + C.workDonePhotoMax + ' รูป', 'TOO_LARGE');
+  var maxBytes = C.uploadMaxMb * 1048576, totalMax = C.requestMaxMb * 1048576, total = 0;
+  list.forEach(function (a) { // total size first (cheap, before decoding anything)
+    var b64 = a && typeof a === 'object' ? String(a.base64 || '').replace(/\s+/g, '') : '';
+    total += Math.floor(b64.length * 3 / 4) - 2;
+  });
+  if (total > totalMax) fail_('รูปถ่ายรวมกันใหญ่เกิน ' + C.requestMaxMb + 'MB', 'TOO_LARGE');
+  total = 0;
+  return list.map(function (a) {
+    if (!a || typeof a !== 'object' || !a.base64) fail_('รูปถ่ายไม่ถูกต้อง');
+    var full = str_(a.name, 100000);
+    var ext = full.indexOf('.') >= 0 ? full.split('.').pop().toLowerCase() : '';
+    if (C.workDonePhotoExt.indexOf(ext) < 0) fail_('ชนิดไฟล์ไม่รองรับ (รูปภาพเท่านั้น): ' + str_(full, 80));
+    var b64 = String(a.base64).replace(/\s+/g, '');
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(b64)) fail_('อัปโหลดรูปถ่ายไม่สำเร็จ');
+    if (Math.floor(b64.length * 3 / 4) - 2 > maxBytes) fail_('รูปถ่ายใหญ่เกิน ' + C.uploadMaxMb + 'MB: ' + str_(full, 80), 'TOO_LARGE');
+    var bytes = Utilities.base64Decode(b64);
+    if (!bytes.length) fail_('อัปโหลดรูปถ่ายไม่สำเร็จ');
+    if (bytes.length > maxBytes) fail_('รูปถ่ายใหญ่เกิน ' + C.uploadMaxMb + 'MB: ' + str_(full, 80), 'TOO_LARGE');
+    if (!contentMatchesExt_(bytes, ext)) fail_('ชนิดไฟล์ไม่ตรงกับเนื้อหาไฟล์: ' + str_(full, 80));
+    total += bytes.length;
+    if (total > totalMax) fail_('รูปถ่ายรวมกันใหญ่เกิน ' + C.requestMaxMb + 'MB', 'TOO_LARGE');
+    return { name: str_(full, WP_ITEM_FILE_NAME_MAX), ext: ext, mime: WP_MIME_BY_EXT[ext], bytes: bytes };
+  });
+}
+
 function saveDriveFile_(bytes, mime, filename) {
   // Files stay private (default sharing) and are only served through apiFile_ / apiPermit_.
   return folder_().createFile(Utilities.newBlob(bytes, mime, filename)).getId();
@@ -372,7 +437,9 @@ function permitOut_(r, staff) {
     area_assigned_at: r.area_assigned_at, area_approved_at: r.area_approved_at, area_comment: r.area_comment,
     resp_approved_at: r.resp_approved_at, resp_comment: r.resp_comment,
     has_area_sign: !!r.area_sign_file, has_resp_sign: !!r.resp_sign_file,
-    stage_started_at: r.stage_started_at, reject_stage: r.reject_stage
+    stage_started_at: r.stage_started_at, reject_stage: r.reject_stage,
+    // the contractor's "แจ้งเสร็จงาน" (action work_done)
+    work_done_at: r.work_done_at || '', work_done_note: r.work_done_note || '', work_done_photos: workDonePhotosOut_(r)
   };
   if (staff) {
     out.responsible_id = Number(r.responsible_id) || 0;
@@ -389,7 +456,7 @@ function listRowOut_(r) {
     requester_phone: r.requester_phone, location: r.location, worker_count: Number(r.worker_count) || 0,
     approver_name: r.approver_name, created_at: r.created_at, end_ts: permitEndTs_(r),
     stage: stageOf_(r), responsible_name: r.responsible_name, area_owner_name: r.area_owner_name,
-    stage_started_at: r.stage_started_at
+    stage_started_at: r.stage_started_at, work_done_at: r.work_done_at || ''
   };
 }
 
@@ -441,7 +508,7 @@ function apiTrackList_(p, ctx) {
       if (String(r.created_at).substring(0, 10) < from && String(r.work_date) < from) return false;
       var st = r.status === 'pending' ? stageOf_(r) : '';
       var who = '';
-      if (st === 'assign' || st === 'resp') who = r.responsible_name || '';
+      if (st === 'assign' || st === 'resp') who = r.responsible_name || ''; // ขั้นที่ 1 (resp: legacy order)
       else if (st === 'area') who = r.area_owner_name || '';
       out.push({
         permit_no: r.permit_no, requester_company: r.requester_company, requester_name: r.requester_name,
@@ -562,7 +629,7 @@ function submitOut_(ctx, row, d) {
  * api.php?action=submit — anonymous, like the original.
  * `responsible_id`: the "ผู้รับผิดชอบงาน" picked from action=responsibles. Required
  * while at least one active responsible user exists (the permit then starts at
- * stage "assign"); with no responsible user at all the permit goes straight to
+ * stage "assign" = ขั้นที่ 1, the responsible approves first); with no responsible user at all the permit goes straight to
  * the จป. (stage "safety"), so the form keeps working before accounts are set up.
  */
 function apiSubmit_(d) {
@@ -695,9 +762,9 @@ function apiPermit_(p, ctx) {
 function apiFile_(p, ctx) {
   var r = authorizedPermit_(p, ctx);
   var fileId = r.attachment_file, name = r.attachment_name, mime0 = r.attachment_mime;
-  if (p.fid !== undefined && p.fid !== null && p.fid !== '') { // a checklist item file (same access rules)
+  if (p.fid !== undefined && p.fid !== null && p.fid !== '') { // a checklist item file / work-done photo (same access rules)
     var x = null;
-    itemFilesOf_(r).some(function (f) { if (String(f.fid) === String(p.fid)) { x = f; return true; } return false; });
+    itemFilesOf_(r).concat(workDonePhotosOf_(r)).some(function (f) { if (String(f.fid) === String(p.fid)) { x = f; return true; } return false; });
     if (!x) fail_('ไม่พบไฟล์', 'NOT_FOUND');
     fileId = x.file; name = x.name; mime0 = x.mime;
   }
@@ -710,6 +777,81 @@ function apiFile_(p, ctx) {
     inline: ['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp'].indexOf(mime) >= 0,
     base64: Utilities.base64Encode(blob.getBytes())
   };
+}
+
+// ---------------------------------------------------------------- TOKEN: contractor reports the work done
+var WP_WORK_DONE_NOTE_MAX = 1000;
+
+/** work_done is allowed once, on an approved permit (also past its work window), never pending / rejected / closed. */
+function workDoneCheck_(r) {
+  if (r.work_done_at) fail_('แจ้งเสร็จงานไปแล้วเมื่อ ' + teamsThaiDate_(r.work_done_at, true), 'CONFLICT');
+  if (r.status !== 'approved') {
+    var st = WP_DATA.status[r.status];
+    fail_('แจ้งเสร็จงานได้เฉพาะใบอนุญาตที่อนุมัติแล้ว (สถานะปัจจุบัน: ' + (st ? st.label : r.status) + ')', 'CONFLICT');
+  }
+}
+
+/**
+ * work_done — the requester (contractor) holding the permit's tracking token (`no` + `t`)
+ * reports the work done: 1..workDonePhotoMax photos (checkWorkDonePhotos_) + an optional
+ * note. Photos are stored privately in the app Drive folder (served only through
+ * action=file by fid, same access rules as the attachment). Records work_done_at /
+ * work_done_note / work_done_photos (columns created on first write), logs
+ * "ผู้รับเหมาแจ้งเสร็จงาน" and sends a Teams card @mentioning the responsible, the
+ * area owner and the จป. The status stays "approved" (the จป. still closes it).
+ */
+function apiWorkDone_(d, ctx) {
+  var auth = { no: d.no, t: d.t }; // token only — never by id / session
+  workDoneCheck_(authorizedPermit_(auth, ctx)); // cheap checks before decoding / uploading anything
+  var photos = checkWorkDonePhotos_(d.photos);
+  var note = str_(d.note, WP_WORK_DONE_NOTE_MAX);
+  var created = [], done = null, out;
+  try {
+    var tag = stampName_('x').replace(/\.x$/, '');
+    var list = photos.map(function (f, i) {
+      var id = saveDriveFile_(f.bytes, f.mime, tag + '_done' + (i + 1) + '.' + f.ext);
+      created.push(id);
+      return { fid: randomHex_(16), name: f.name, mime: f.mime, size: f.bytes.length, file: id };
+    });
+    var cell = JSON.stringify(list);
+    toCell_(cell, 'work_done_photos');
+    out = withLock_(function () {
+      relockCtx_(ctx);
+      var t = table_(ctx, 'permits');
+      var p = authorizedPermit_(auth, ctx); // fresh, under the lock
+      workDoneCheck_(p);
+      ['work_done_at', 'work_done_note', 'work_done_photos'].forEach(function (h) { ensureColumn_(t, h); });
+      var stamp = nowStr_();
+      p.work_done_at = stamp;
+      p.work_done_note = note;
+      p.work_done_photos = cell;
+      p.updated_at = stamp;
+      writeRow_(t, p);
+      addLog_(ctx, p.id, 'work_done', teamsRequester_(p) || p.requester_name,
+        'ผู้รับเหมาแจ้งเสร็จงาน (รูปถ่าย ' + list.length + ' รูป)' + (note ? '\nหมายเหตุ: ' + note : ''));
+      done = { row: p, users: workDoneUsers_(ctx, p) };
+      return { work_done_at: stamp, photos: list.length, updated_at: stamp };
+    });
+  } catch (err) {
+    created.forEach(trashDriveFile_);
+    throw err;
+  }
+  notifyWorkDone_(done.row, done.users, out.photos); // after the lock is released; never throws
+  return out;
+}
+
+/** Who hears about "แจ้งเสร็จงาน": the assigned responsible + area owner (active), then the active จป. */
+function workDoneUsers_(ctx, r) {
+  var users = table_(ctx, 'users'), out = [], seen = {};
+  var add = function (u) {
+    if (!u || u.active !== '1' || seen[u.id]) return;
+    seen[u.id] = true;
+    out.push(u);
+  };
+  add(findById_(users, r.responsible_id));
+  add(findById_(users, r.area_owner_id));
+  activeUsersWithRole_(ctx, 'safety').forEach(add);
+  return out;
 }
 
 // ---------------------------------------------------------------- ADMIN
@@ -855,6 +997,9 @@ function apiSaveReview_(d, ctx) {
         // approval workflow: the "การอนุญาตทำงาน" cells of rows 1–2 are the stage approvals
         // (area owner / responsible signatures) — not typed by the จป.
         if (wf && sk === 'permit') return;
+        // a cell the page did not send is kept as stored: the view page no longer has inputs for
+        // "ก่อนเริ่มงาน" / "ระหว่างทำงาน" (merged into the approval column), older stamps stay
+        if (!Object.prototype.hasOwnProperty.call(role, sk)) return;
         var name = str_(role[sk] && role[sk].name, 150);
         var old = ins[rk][sk];
         if (name === '') { delete ins[rk][sk]; return; }
@@ -891,8 +1036,8 @@ function apiDecide_(d, ctx) {
       if (!p) fail_('ไม่พบใบอนุญาต', 'NOT_FOUND');
       var stamp = nowStr_();
       if (decision !== 'close' && p.status === 'pending' && stageOf_(p) !== 'safety') {
-        // stages 0–2 belong to the assigned responsible / area owner — the จป. may reassign, not act for them
-        fail_('ใบอนุญาตนี้ยังอยู่ในขั้นตอน "' + WP_DATA.stages[stageOf_(p)].label + '" — จป. พิจารณาได้หลังผู้รับผิดชอบงานอนุมัติแล้ว', 'CONFLICT');
+        // stages 1–2 belong to the assigned responsible / area owner — the จป. may reassign, not act for them
+        fail_('ใบอนุญาตนี้ยังอยู่ในขั้นตอน "' + WP_DATA.stages[stageOf_(p)].label + '" — จป. พิจารณาได้หลังผู้รับผิดชอบงานและเจ้าของพื้นที่อนุมัติแล้ว', 'CONFLICT');
       }
       if (decision === 'approve') {
         if (p.status !== 'pending') fail_('ใบอนุญาตนี้ไม่ได้อยู่ในสถานะรออนุมัติ');
@@ -932,7 +1077,7 @@ function apiDecide_(d, ctx) {
   return out;
 }
 
-// ---------------------------------------------------------------- APPROVAL WORKFLOW (stages 0–2)
+// ---------------------------------------------------------------- APPROVAL WORKFLOW (stages 1–2)
 /** Current stage of a pending permit ('' when not pending). No responsible → straight to the จป. */
 function stageOf_(r) {
   if (!r || r.status !== 'pending') return '';
@@ -949,7 +1094,7 @@ function enterStage_(r, stage, stamp) {
   r.reminder_count = '0';
 }
 
-/** User id assigned to a stage (0 for the จป. stage — any จป.). */
+/** User id assigned to a stage (0 for the จป. stage — any จป.). assign / resp (legacy) = the responsible. */
 function stageAssigneeId_(r, stage) {
   if (stage === 'assign' || stage === 'resp') return Number(r.responsible_id) || 0;
   if (stage === 'area') return Number(r.area_owner_id) || 0;
@@ -1018,7 +1163,7 @@ function apiApprovers_(p, ctx) {
 }
 
 /**
- * "รออนุมัติของฉัน": pending permits whose CURRENT stage (0–2) is assigned to the
+ * "รออนุมัติของฉัน": pending permits whose CURRENT stage (1–2) is assigned to the
  * caller, plus recent permits assigned to them. Only the caller's own permits —
  * never admin-wide data. Cached per user under the data version.
  */
@@ -1055,7 +1200,12 @@ function wfStageCheck_(p, want) {
   return st;
 }
 
-/** Stage 0: the assigned responsible picks the area owner → stage 1. */
+/**
+ * Legacy action (a page cached before the order changed): at stage assign the
+ * responsible picks the area owner WITHOUT signing → stage area; that permit then
+ * follows the legacy path area → resp → safety (see the header). The current page
+ * uses stage_decide (approve + area_owner_id) instead.
+ */
 function apiAssignArea_(d, ctx) {
   requireUser_(d, ctx);
   var done = null;
@@ -1082,8 +1232,13 @@ function apiAssignArea_(d, ctx) {
 }
 
 /**
- * Stages 0–2 by their assignee: approve (stage 1 / 2, signature required) or
- * reject (any of 0–2, reason required). Stage 3 is the จป.'s action=decide.
+ * Stages 1–2 by their assignee: approve (signature required) or reject (reason
+ * required). Stage 3 is the จป.'s action=decide.
+ *  - assign (ขั้นที่ 1): the responsible approves AND picks the area owner
+ *    (`area_owner_id`) in one action → area
+ *  - area   (ขั้นที่ 2): the area owner approves → safety; on a legacy permit whose
+ *    responsible has not approved yet (no resp_approved_at) → resp
+ *  - resp   (legacy, the responsible after the area owner): approves → safety
  */
 function apiStageDecide_(d, ctx) {
   requireUser_(d, ctx);
@@ -1113,7 +1268,11 @@ function apiStageDecide_(d, ctx) {
         done = { row: p, reject: true, by: u.fullname + ' (' + roleLabel + ')', stage: st };
         return { status: p.status, stage: '', updated_at: p.updated_at };
       }
-      if (st === 'assign') fail_('กรุณาระบุเจ้าของพื้นที่ก่อน (ขั้นตอนนี้ไม่มีการลงนาม)');
+      var ao = null;
+      if (st === 'assign') {
+        ao = activeRoleUser_(ctx, d.area_owner_id, 'area_owner');
+        if (!ao) fail_('กรุณาเลือกเจ้าของพื้นที่ (ผู้ใช้ที่มีบทบาทเจ้าของพื้นที่และเปิดใช้งานอยู่)');
+      }
       if (!sign) fail_('กรุณาลงลายมือชื่อ' + roleLabel);
       // the area owner / responsible tick the checklist of the paper form ("สำหรับผู้รับผิดชอบงาน/
       // ผู้รับผิดชอบพื้นที่/ผู้ตรวจสอบงาน") when they approve; the จป. reviews it last (optional)
@@ -1123,14 +1282,26 @@ function apiStageDecide_(d, ctx) {
         p.checklist = cl;
       }
       if (Array.isArray(d.loto) && jdec_(p.work_types, []).indexOf('electric') >= 0) p.loto = JSON.stringify(cleanLoto_(d.loto));
-      signFile = saveDriveFile_(sign, 'image/png', p.permit_no + '_' + st + '_' + randomHex_(8) + '.png');
+      signFile = saveDriveFile_(sign, 'image/png', p.permit_no + '_' + (st === 'area' ? 'area' : 'resp') + '_' + randomHex_(8) + '.png');
       var next;
-      if (st === 'area') {
+      if (st === 'assign') {
+        p.resp_approved_at = stamp; p.resp_sign_file = signFile; p.resp_comment = comment;
+        p.area_owner_id = ao.id; p.area_owner_name = ao.fullname; p.area_assigned_at = stamp;
+        enterStage_(p, 'area', stamp);
+        addLog_(ctx, p.id, 'resp_approve', u.fullname, comment || 'ผู้รับผิดชอบงานอนุมัติ');
+        addLog_(ctx, p.id, 'assign_area', u.fullname, 'ระบุเจ้าของพื้นที่: ' + ao.fullname);
+        next = [ao];
+      } else if (st === 'area') {
         p.area_approved_at = stamp; p.area_sign_file = signFile; p.area_comment = comment;
-        enterStage_(p, 'resp', stamp);
         addLog_(ctx, p.id, 'area_approve', u.fullname, comment || 'เจ้าของพื้นที่อนุมัติ');
-        var ru = findById_(table_(ctx, 'users'), p.responsible_id);
-        next = ru ? [ru] : [];
+        if (p.resp_approved_at) {
+          enterStage_(p, 'safety', stamp);
+          next = activeUsersWithRole_(ctx, 'safety');
+        } else { // legacy order: the responsible has not approved yet
+          enterStage_(p, 'resp', stamp);
+          var ru = findById_(table_(ctx, 'users'), p.responsible_id);
+          next = ru ? [ru] : [];
+        }
       } else {
         p.resp_approved_at = stamp; p.resp_sign_file = signFile; p.resp_comment = comment;
         enterStage_(p, 'safety', stamp);
@@ -1152,9 +1323,9 @@ function apiStageDecide_(d, ctx) {
 }
 
 /**
- * Approvals table of the paper form, rows 1–2: the assigned area owner (row
- * "owner" = 1. เจ้าของพื้นที่โครงการ) and the assigned responsible (row
- * "contractor" = 2. ผู้รับผิดชอบงาน) sign their OWN inspection cells
+ * Approvals table of the paper form, rows 1–2: the assigned responsible (row
+ * "contractor" = 1. ผู้รับผิดชอบงาน) and the assigned area owner (row
+ * "owner" = 2. เจ้าของพื้นที่โครงการ) sign their OWN inspection cells
  * (ก่อนเริ่มงาน / ระหว่างทำงาน / หลังเสร็จงาน) of an approved permit, stamped with
  * their account name + time. An already signed cell is never overwritten (the
  * จป. may still correct any cell with save_review, as before). `row` is needed
@@ -1196,10 +1367,11 @@ function apiInspectSign_(d, ctx) {
 }
 
 /**
- * จป. only: reassign the responsible (stages 0–2) and/or the area owner (stage 1)
- * of a pending permit, e.g. when someone is absent. If the CURRENT stage's
- * assignee changes, that stage's clock and reminders restart and the new
- * assignee is notified. The จป. never approves stages 0–2 themself.
+ * จป. only: reassign the responsible (until they approved: stage assign, or a
+ * legacy area / resp) and/or the area owner (stage area) of a pending permit,
+ * e.g. when someone is absent. If the CURRENT stage's assignee changes, that
+ * stage's clock and reminders restart and the new assignee is notified. The จป.
+ * never approves stages 1–2 themself.
  */
 function apiReassign_(d, ctx) {
   requireAdmin_(d, ctx);
@@ -1217,6 +1389,8 @@ function apiReassign_(d, ctx) {
       var ru = activeRoleUser_(ctx, d.responsible_id, 'responsible');
       if (!ru) fail_('ผู้รับผิดชอบงานที่เลือกไม่ถูกต้องหรือถูกปิดการใช้งาน');
       if (Number(ru.id) !== Number(p.responsible_id)) {
+        // the signed approval stays with the person who signed it
+        if (p.resp_approved_at) fail_('ผู้รับผิดชอบงาน (' + p.responsible_name + ') อนุมัติแล้ว — เปลี่ยนผู้รับผิดชอบงานไม่ได้', 'CONFLICT');
         notes.push('ผู้รับผิดชอบงาน: ' + (p.responsible_name || '-') + ' → ' + ru.fullname);
         p.responsible_id = ru.id; p.responsible_name = ru.fullname;
       }
@@ -1296,8 +1470,7 @@ function apiDelete_(d, ctx) {
     var t = table_(ctx, 'permits');
     var p = findById_(t, d.id);
     if (!p) fail_('ไม่พบใบอนุญาต', 'NOT_FOUND');
-    var fileIds = [p.attachment_file, p.requester_sign_file, p.owner_sign_file, p.approver_sign_file, p.area_sign_file, p.resp_sign_file]
-      .concat(itemFilesOf_(p).map(function (x) { return x.file; }));
+    var fileIds = permitFileIds_(p);
     fileIds.forEach(trashDriveFile_);
     var lt = table_(ctx, 'permit_logs');
     var logs = lt.rows.filter(function (l) { return Number(l.permit_id) === Number(p.id); });
@@ -1418,8 +1591,7 @@ function apiResetData_(p, ctx) {
     while (it.hasNext()) trashOne(it.next());
     var trackKeys = [];
     pt.rows.forEach(function (r) {
-      [r.attachment_file, r.requester_sign_file, r.owner_sign_file, r.approver_sign_file, r.area_sign_file, r.resp_sign_file]
-        .concat(itemFilesOf_(r).map(function (x) { return x.file; })).forEach(function (id) {
+      permitFileIds_(r).forEach(function (id) {
         if (!id || seen[id]) return;
         try { trashOne(DriveApp.getFileById(id)); } catch (e) { seen[id] = true; }
       });
@@ -1640,7 +1812,7 @@ var WP_TEAMS_DECISIONS = {
   close: { title: 'ปิดงานใบอนุญาตแล้ว', color: 'Good', label: 'ปิดงาน', note: 'หมายเหตุ' }
 };
 
-/** approve / reject / close by a จป.; reject at stage 0–2 by its assignee (`stage` = where it was rejected). */
+/** approve / reject / close by a จป.; reject at stage 1–2 by its assignee (`stage` = where it was rejected). */
 function notifyDecision_(r, decision, byName, comment, stage) {
   return notifyTeams_(function () {
     var h = WP_TEAMS_DECISIONS[decision];
@@ -1727,7 +1899,7 @@ function stageUsers_(ctx, r) {
   return u ? [u] : [];
 }
 
-/** submit with a responsible: "มีคำขอใบอนุญาตใหม่" @mentioning them (stage 0: pick the area owner). */
+/** submit with a responsible: "มีคำขอใบอนุญาตใหม่" @mentioning them (ขั้นที่ 1: approve + pick the area owner). */
 function notifyNewWorkflowPermit_(r, resp) {
   return notifyTeams_(function () {
     var who = teamsWho_([resp]);
@@ -1735,10 +1907,10 @@ function notifyNewWorkflowPermit_(r, resp) {
     facts.splice(5, 0, ['เบอร์โทรผู้ขอ', r.requester_phone], ['จำนวนผู้ปฏิบัติงาน', (Number(r.worker_count) || 0) + ' คน']);
     return teamsCard_({
       title: 'มีคำขอใบอนุญาตใหม่', color: 'Good', subtitle: 'แจ้งเตือนผู้อนุมัติ',
-      lines: ['ขั้นที่ 0: ' + WP_DATA.roles.responsible + ' — ' + who.text + ' กรุณาเข้าสู่ระบบเพื่อระบุเจ้าของพื้นที่'],
+      lines: ['ขั้นที่ ' + WP_DATA.stages.assign.no + ': ' + WP_DATA.roles.responsible + ' — ' + who.text + ' กรุณาเข้าสู่ระบบเพื่อตรวจสอบ ลงนามอนุมัติ และระบุเจ้าของพื้นที่'],
       mentions: who.mentions,
       facts: facts,
-      url: teamsAdminViewUrl_(r.id), urlTitle: 'เปิดคำขอ / ระบุเจ้าของพื้นที่'
+      url: teamsAdminViewUrl_(r.id), urlTitle: 'เปิดพิจารณา / อนุมัติ'
     });
   });
 }
@@ -1753,6 +1925,32 @@ function notifyStage_(r, users, reassigned) {
       lines: [reassigned ? 'จป. มอบหมายผู้อนุมัติใหม่สำหรับ ' + r.permit_no : 'ขั้นตอนก่อนหน้าเสร็จแล้ว — ' + r.permit_no + ' รอการพิจารณาของท่าน'],
       facts: teamsWorkflowFacts_(r),
       url: teamsAdminViewUrl_(r.id), urlTitle: 'เปิดพิจารณา'
+    });
+  });
+}
+
+/**
+ * work_done: "ผู้รับเหมาแจ้งเสร็จงาน" @mentioning the responsible, the area owner and the
+ * จป. (`users`, at most WP_TEAMS_MENTION_MAX; no e-mail → plain name). No photo / token in the card.
+ */
+function notifyWorkDone_(r, users, photoCount) {
+  return notifyTeams_(function () {
+    var who = teamsWho_(users);
+    return teamsCard_({
+      title: 'ผู้รับเหมาแจ้งเสร็จงาน ' + r.permit_no, color: 'Good', subtitle: 'แจ้งเสร็จงาน',
+      lines: [(who.text ? who.text + ' — ' : '') + 'กรุณาตรวจสอบหลังเสร็จงาน แล้วให้ จป. ปิดงาน'],
+      mentions: who.mentions,
+      facts: [
+        ['เลขที่', r.permit_no],
+        ['บริษัท (พื้นที่)', r.company],
+        ['สถานที่ปฏิบัติงาน', r.location],
+        ['วันที่ปฏิบัติงาน', teamsWhen_(r)],
+        ['ผู้ขออนุญาต', teamsRequester_(r) + (r.requester_company ? ' (' + r.requester_company + ')' : '')],
+        ['รูปถ่ายเมื่อเสร็จงาน', (Number(photoCount) || 0) + ' รูป'],
+        ['แจ้งเมื่อ', teamsThaiDate_(r.work_done_at, true)]
+      ],
+      note: r.work_done_note ? { label: 'หมายเหตุจากผู้รับเหมา', text: r.work_done_note } : null,
+      url: teamsAdminViewUrl_(r.id), urlTitle: 'ดูใบอนุญาต'
     });
   });
 }

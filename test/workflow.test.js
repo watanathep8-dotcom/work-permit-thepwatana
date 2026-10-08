@@ -1,4 +1,5 @@
-/* Approval workflow (stage 0 assign → 1 area owner → 2 responsible → 3 จป.), roles,
+/* Approval workflow (stage 1 responsible approves + picks the area owner → 2 area owner → 3 จป.;
+ * legacy in-flight permits: area → resp → จป.), roles,
  * permissions, Teams @mention cards and approval reminders — end-to-end through
  * doGet/doPost on the in-memory Apps Script mocks.  Run: node test/run.js */
 'use strict';
@@ -127,7 +128,7 @@ module.exports = function run() {
   check('disabled responsible refused at submit', /ไม่ถูกต้องหรือถูกปิด/.test(post(body({ responsible_id: ids.resp2 })).error));
   post({ action: 'user_toggle', session: S, id: ids.resp2 });
 
-  // ================================================================ submit (stage 0)
+  // ================================================================ submit (stage 1: the responsible)
   check('submit: responsible required while responsibles exist', post(body()).error === 'กรุณาเลือกผู้รับผิดชอบงาน');
   check('submit: an area owner is not a responsible', /ไม่ถูกต้อง/.test(post(body({ responsible_id: ids.area1 })).error));
   check('submit: refused submits created no Drive files', gas.files.size === filesB, gas.files.size - filesB);
@@ -135,7 +136,9 @@ module.exports = function run() {
   const fetches0 = gas.fetches.length;
   r = post(body({ responsible_id: ids.resp1, owner_name: '', with_permit: true }));
   const P = r.data;
-  check('submit with responsible ok → stage assign', r.ok && P.view.permit.stage === 'assign' && P.view.permit.workflow === true && P.view.permit.status === 'pending', r);
+  check('submit with responsible ok → stage assign (ขั้นที่ 1)', r.ok && P.view.permit.stage === 'assign' && P.view.permit.workflow === true && P.view.permit.status === 'pending', r);
+  check('stage numbering: 1 ผู้รับผิดชอบงาน → 2 เจ้าของพื้นที่ → 3 จป. (legacy resp = 1)', ['assign', 'area', 'safety', 'resp'].map((k) => G.WP_DATA.stages[k].no).join() === '1,2,3,1' &&
+    G.WP_DATA.stages.assign.label === 'รอผู้รับผิดชอบงานอนุมัติ' && G.WP_DATA.stages.assign.role === 'responsible' && G.WP_DATA.stages.area.role === 'area_owner');
   check('submit: blank owner_name filled with the responsible name', P.view.permit.owner_name === 'สมศักดิ์ รับผิดชอบ');
   check('token view: no assignee ids / e-mails', !('responsible_id' in P.view.permit) && !JSON.stringify(P.view).includes('@'));
   const lastCard = () => JSON.parse(gas.fetches[gas.fetches.length - 1].params.payload);
@@ -144,12 +147,12 @@ module.exports = function run() {
   const facts = (m) => { const o = {}; (content(m).body.find((b) => b.type === 'FactSet') || { facts: [] }).facts.forEach((f) => { o[f.title] = f.value; }); return o; };
   const ents = (m) => (content(m).msteams.entities || []);
   let c = lastCard();
-  check('teams submit: one card "มีคำขอใบอนุญาตใหม่" mentioning the responsible', gas.fetches.length === fetches0 + 1 && content(c).body[0].items[0].text === 'มีคำขอใบอนุญาตใหม่' &&
-    texts(c).includes('<at>สมศักดิ์ รับผิดชอบ</at>') && /ระบุเจ้าของพื้นที่/.test(texts(c)), texts(c));
+  check('teams submit: one card "มีคำขอใบอนุญาตใหม่" mentioning the responsible (ขั้นที่ 1: approve + pick the area owner)', gas.fetches.length === fetches0 + 1 && content(c).body[0].items[0].text === 'มีคำขอใบอนุญาตใหม่' &&
+    texts(c).includes('ขั้นที่ 1: ผู้รับผิดชอบงาน — <at>สมศักดิ์ รับผิดชอบ</at>') && /ลงนามอนุมัติ และระบุเจ้าของพื้นที่/.test(texts(c)), texts(c));
   check('teams submit: mention entity (type, text, mentioned id = e-mail, name)', JSON.stringify(ents(c)) === JSON.stringify([{ type: 'mention', text: '<at>สมศักดิ์ รับผิดชอบ</at>', mentioned: { id: 'somsak@company.co.th', name: 'สมศักดิ์ รับผิดชอบ' } }]) &&
     content(c).msteams.width === 'Full', content(c).msteams);
-  check('teams submit: facts + button to admin view, no token', facts(c)['เลขที่'] === P.permit_no && facts(c)['ขั้นตอนปัจจุบัน'] === 'รอระบุเจ้าของพื้นที่' &&
-    content(c).actions[0].url.endsWith('/admin/view.html?id=' + P.id) && !gas.fetches[gas.fetches.length - 1].params.payload.includes(P.token));
+  check('teams submit: facts + button to admin view, no token', facts(c)['เลขที่'] === P.permit_no && facts(c)['ขั้นตอนปัจจุบัน'] === 'รอผู้รับผิดชอบงานอนุมัติ' &&
+    content(c).actions[0].url.endsWith('/admin/view.html?id=' + P.id) && !gas.fetches[gas.fetches.length - 1].params.payload.includes(P.token), facts(c));
 
   {
     const RID = '9f'.repeat(16);
@@ -161,58 +164,63 @@ module.exports = function run() {
     post({ action: 'stage_decide', session: login('resp2'), id: first.data.id, decision: 'reject', comment: 'ทดสอบ' });
   }
 
-  // ================================================================ stage 0 → 1 (assign area owner)
+  // ================================================================ stage 1: the responsible approves (signature) + picks the area owner → stage 2
   let t = post({ action: 'my_tasks', session: SR1 });
   check('my_tasks (responsible): the new permit is pending for them', t.ok && t.data.count === 1 && t.data.pending[0].id === P.id && t.data.pending[0].stage === 'assign', t);
   check('my_tasks (area owner): nothing yet', post({ action: 'my_tasks', session: SA1 }).data.count === 0);
-  check('area owner cannot see it before assignment', post({ action: 'permit', session: SA1, id: P.id }).code === 'NOT_FOUND');
-  check('other responsible cannot see it', post({ action: 'permit', session: SR2, id: P.id }).code === 'NOT_FOUND' && post({ action: 'assign_area', session: SR2, id: P.id, area_owner_id: ids.area1 }).code === 'NOT_FOUND');
+  check('area owner cannot see it before the responsible approved', post({ action: 'permit', session: SA1, id: P.id }).code === 'NOT_FOUND');
+  check('other responsible cannot see / approve it', post({ action: 'permit', session: SR2, id: P.id }).code === 'NOT_FOUND' &&
+    post({ action: 'stage_decide', session: SR2, id: P.id, decision: 'approve', sign: SIG, area_owner_id: ids.area1 }).code === 'NOT_FOUND');
   r = post({ action: 'permit', session: SR1, id: P.id, signs: true });
   check('assigned responsible reads it (ids, signs incl. area/resp)', r.ok && r.data.permit.responsible_id === ids.resp1 && 'area' in r.data.signs && 'resp' in r.data.signs, r);
-  check('จป. cannot approve / reject at stage 0 (CONFLICT)', post({ action: 'decide', session: S, id: P.id, decision: 'approve', sign: SIG }).code === 'CONFLICT' &&
+  check('จป. cannot approve / reject at stage 1 (CONFLICT)', post({ action: 'decide', session: S, id: P.id, decision: 'approve', sign: SIG }).code === 'CONFLICT' &&
     post({ action: 'decide', session: S, id: P.id, decision: 'reject', comment: 'x' }).code === 'CONFLICT');
-  check('จป. is not the assignee: assign_area / stage_decide FORBIDDEN', post({ action: 'assign_area', session: S, id: P.id, area_owner_id: ids.area1 }).code === 'FORBIDDEN' &&
+  check('จป. is not the assignee: stage_decide FORBIDDEN', post({ action: 'stage_decide', session: S, id: P.id, decision: 'approve', sign: SIG, area_owner_id: ids.area1 }).code === 'FORBIDDEN' &&
     post({ action: 'stage_decide', session: S, id: P.id, decision: 'reject', comment: 'x' }).code === 'FORBIDDEN');
-  check('stage 0 has no approve (pick the area owner)', /ระบุเจ้าของพื้นที่ก่อน/.test(post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'approve', sign: SIG }).error));
-  check('assign_area: a responsible-only user is not an area owner', /เจ้าของพื้นที่/.test(post({ action: 'assign_area', session: SR1, id: P.id, area_owner_id: ids.resp2 }).error));
+  check('stage 1 approve needs the area owner', /เลือกเจ้าของพื้นที่/.test(post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'approve', sign: SIG }).error));
+  check('stage 1: a responsible-only user is not an area owner', /เลือกเจ้าของพื้นที่/.test(post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'approve', sign: SIG, area_owner_id: ids.resp2 }).error));
+  check('stage 1 approve needs a signature', /ลงลายมือชื่อ/.test(post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'approve', area_owner_id: ids.area1 }).error));
+  check('stage 1 reject needs a reason', /เหตุผล/.test(post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'reject', comment: ' ' }).error));
+  check('refused stage 1 approvals changed nothing', (() => { const v = post({ action: 'permit', session: S, id: P.id }).data.permit; return v.stage === 'assign' && !v.resp_approved_at && !v.area_owner_name; })());
   const base0 = post({ action: 'permit', session: SR1, id: P.id }).data.permit.updated_at;
   addMin(3);
-  const dvA = dv();
-  r = post({ action: 'assign_area', session: SR1, id: P.id, area_owner_id: ids.area1, base: base0 });
-  check('assign_area ok → stage area (data version replaced)', r.ok && r.data.stage === 'area' && dv() !== dvA, r);
+  const dvA = dv(), filesA = gas.files.size;
+  r = post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'approve', comment: 'งานพร้อม', sign: SIG, area_owner_id: ids.area1, base: base0,
+    checklist: { _v: G.WP_DATA.config.checklistVersion, h1: true } });
+  check('responsible approves + picks the area owner → stage area (data version replaced)', r.ok && r.data.stage === 'area' && dv() !== dvA && gas.files.size === filesA + 1, r);
+  r = post({ action: 'permit', session: S, id: P.id, signs: true });
+  check('stage 1 recorded: responsible signature / time / comment, area owner assigned, checklist ticked', r.data.permit.resp_approved_at && r.data.permit.has_resp_sign && r.data.permit.resp_comment === 'งานพร้อม' &&
+    r.data.permit.area_owner_name === 'อารี เจ้าของพื้นที่' && r.data.permit.area_assigned_at === r.data.permit.resp_approved_at && !r.data.permit.area_approved_at &&
+    r.data.permit.checklist.h1 === true && r.data.signs.resp.startsWith('data:image/png') && !r.data.signs.area, r.data.permit);
   c = lastCard();
-  check('teams: stage 1 card "รออนุมัติขั้นที่ 1: เจ้าของพื้นที่ — <at>…</at>"', content(c).body[0].items[0].text === 'รออนุมัติขั้นที่ 1: เจ้าของพื้นที่ — <at>อารี เจ้าของพื้นที่</at>' &&
+  check('teams: after the responsible → card "รออนุมัติขั้นที่ 2: เจ้าของพื้นที่ — <at>…</at>"', content(c).body[0].items[0].text === 'รออนุมัติขั้นที่ 2: เจ้าของพื้นที่ — <at>อารี เจ้าของพื้นที่</at>' &&
     ents(c).length === 1 && ents(c)[0].mentioned.id === 'aree@company.co.th', content(c).body[0]);
   r = get({ action: 'track_list' });
   const tl = r.ok && r.data.find((x) => x.permit_no === P.permit_no);
   check('GET track_list: public short row, waits at area owner by name', !!tl && tl.stage === 'area' && tl.waiting_name === 'อารี เจ้าของพื้นที่' && tl.status === 'pending', r);
   check('GET track_list: no phone / token / details / ids', r.ok && r.data.every((x) => Object.keys(x).sort().join() ===
     'es,permit_no,requester_company,requester_name,stage,status,time_from,time_to,waiting_name,work_date,work_types'), r.data && r.data[0]);
-  check('assign_area again → CONFLICT (stage moved on)', post({ action: 'assign_area', session: SR1, id: P.id, area_owner_id: ids.area2, base: base0 }).code === 'CONFLICT');
+  check('stage 1 again → FORBIDDEN (stage moved on to the area owner)', post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'approve', sign: SIG, area_owner_id: ids.area2 }).code === 'FORBIDDEN' &&
+    post({ action: 'assign_area', session: SR1, id: P.id, area_owner_id: ids.area2, base: base0 }).code === 'CONFLICT');
+  check('responsible already approved → จป. cannot replace them (signature stays with the signer)',
+    post({ action: 'reassign', session: S, id: P.id, responsible_id: ids.resp2 }).code === 'CONFLICT' && post({ action: 'reassign', session: S, id: P.id, responsible_id: ids.resp1 }).data.changed === false);
 
-  // ================================================================ stage 1 (area owner)
-  check('responsible cannot approve stage 1', post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'approve', sign: SIG }).code === 'FORBIDDEN');
-  check('other area owner cannot see / approve stage 1', post({ action: 'stage_decide', session: SA2, id: P.id, decision: 'approve', sign: SIG }).code === 'NOT_FOUND');
+  // ================================================================ stage 2 (area owner) → 3 (จป.)
+  check('responsible cannot approve stage 2', post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'approve', sign: SIG }).code === 'FORBIDDEN');
+  check('other area owner cannot see / approve stage 2', post({ action: 'stage_decide', session: SA2, id: P.id, decision: 'approve', sign: SIG }).code === 'NOT_FOUND');
   check('area owner: approve needs a signature', /ลงลายมือชื่อ/.test(post({ action: 'stage_decide', session: SA1, id: P.id, decision: 'approve' }).error));
   check('area owner: reject needs a reason', /เหตุผล/.test(post({ action: 'stage_decide', session: SA1, id: P.id, decision: 'reject', comment: ' ' }).error));
-  check('my_tasks (area owner): pending now', post({ action: 'my_tasks', session: SA1 }).data.pending.map((x) => x.id).join() === String(P.id));
+  check('my_tasks (area owner): pending now; responsible: none pending', post({ action: 'my_tasks', session: SA1 }).data.pending.map((x) => x.id).join() === String(P.id) &&
+    post({ action: 'my_tasks', session: SR1 }).data.count === 0);
   addMin(4);
   r = post({ action: 'stage_decide', session: SA1, id: P.id, decision: 'approve', comment: 'พื้นที่พร้อม', sign: SIG });
-  check('area owner approves → stage resp', r.ok && r.data.stage === 'resp', r);
-  c = lastCard();
-  check('teams: stage 2 card mentions the responsible', content(c).body[0].items[0].text === 'รออนุมัติขั้นที่ 2: ผู้รับผิดชอบงาน — <at>สมศักดิ์ รับผิดชอบ</at>' && ents(c)[0].mentioned.id === 'somsak@company.co.th');
-  check('area owner can still read it, cannot act any more', post({ action: 'permit', session: SA1, id: P.id }).ok && post({ action: 'stage_decide', session: SA1, id: P.id, decision: 'approve', sign: SIG }).code === 'FORBIDDEN');
-
-  // ================================================================ stage 2 (responsible) → 3 (จป.)
-  check('area owner cannot reject stage 2', post({ action: 'stage_decide', session: SA1, id: P.id, decision: 'reject', comment: 'x' }).code === 'FORBIDDEN');
-  addMin(5);
-  r = post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'approve', sign: SIG });
-  check('responsible approves → stage safety', r.ok && r.data.stage === 'safety', r);
+  check('area owner approves → stage safety (responsible already approved)', r.ok && r.data.stage === 'safety', r);
   c = lastCard();
   check('teams: stage 3 card mentions the active จป. with e-mail (others by name)', /^รออนุมัติขั้นที่ 3: จป\. \(เจ้าหน้าที่ความปลอดภัย\) — /.test(content(c).body[0].items[0].text) &&
     content(c).body[0].items[0].text.includes('<at>ผู้ดูแลระบบ จป.</at>') && content(c).body[0].items[0].text.includes('จป. เก่า') && !content(c).body[0].items[0].text.includes('<at>จป. เก่า</at>') &&
     ents(c).length === 1 && ents(c)[0].mentioned.id === 'safety.admin@company.co.th', content(c).body[0].items[0].text);
-  check('my_tasks (responsible): nothing pending, permit in recent', (() => { const x = post({ action: 'my_tasks', session: SR1 }).data; return x.count === 0 && x.recent.some((y) => y.id === P.id); })());
+  check('area owner can still read it, cannot act any more', post({ action: 'permit', session: SA1, id: P.id }).ok && post({ action: 'stage_decide', session: SA1, id: P.id, decision: 'approve', sign: SIG }).code === 'CONFLICT');
+  check('my_tasks (responsible / area owner): nothing pending, permit in recent', [SR1, SA1].every((s) => { const x = post({ action: 'my_tasks', session: s }).data; return x.count === 0 && x.recent.some((y) => y.id === P.id); }));
   check('responsible cannot decide stage 3', post({ action: 'decide', session: SR1, id: P.id, decision: 'approve', sign: SIG }).code === 'FORBIDDEN' &&
     post({ action: 'stage_decide', session: SR1, id: P.id, decision: 'approve', sign: SIG }).code === 'CONFLICT');
   addMin(6);
@@ -224,26 +232,31 @@ module.exports = function run() {
   const fp = r.data.permit;
   check('approved: every step recorded (who / when) + signatures served', fp.status === 'approved' && fp.stage === '' && fp.area_owner_name === 'อารี เจ้าของพื้นที่' &&
     fp.area_assigned_at && fp.area_approved_at && fp.resp_approved_at && fp.approved_at && fp.area_comment === 'พื้นที่พร้อม' && fp.has_area_sign && fp.has_resp_sign &&
+    fp.resp_approved_at < fp.area_approved_at && fp.area_approved_at < fp.approved_at &&
     r.data.signs.area.startsWith('data:image/png') && r.data.signs.resp.startsWith('data:image/png') && r.data.signs.approver.startsWith('data:image/png'), fp);
-  check('logs: submit, assign_area, area_approve, resp_approve, approve (with names)', r.data.logs.map((l) => l.action).join() === 'submit,assign_area,area_approve,resp_approve,approve' &&
-    r.data.logs[1].by_name === 'สมศักดิ์ รับผิดชอบ' && r.data.logs[2].by_name === 'อารี เจ้าของพื้นที่' && r.data.logs[2].note === 'พื้นที่พร้อม', r.data.logs);
+  check('logs: submit, resp_approve, assign_area, area_approve, approve (with names)', r.data.logs.map((l) => l.action).join() === 'submit,resp_approve,assign_area,area_approve,approve' &&
+    r.data.logs[1].by_name === 'สมศักดิ์ รับผิดชอบ' && r.data.logs[1].note === 'งานพร้อม' && r.data.logs[2].note === 'ระบุเจ้าของพื้นที่: อารี เจ้าของพื้นที่' &&
+    r.data.logs[3].by_name === 'อารี เจ้าของพื้นที่' && r.data.logs[3].note === 'พื้นที่พร้อม', r.data.logs);
   const tv = post({ action: 'permit', no: P.permit_no, t: P.token, signs: true }).data;
-  check('token holder: stages + times, print signatures, no ids / e-mails', tv.permit.area_approved_at === fp.area_approved_at && tv.signs.area && !('area_owner_id' in tv.permit) && !JSON.stringify(tv).includes('@company'));
+  check('token holder: stages + times, print signatures, no ids / e-mails', tv.permit.area_approved_at === fp.area_approved_at && tv.signs.area && tv.signs.resp && !('area_owner_id' in tv.permit) && !JSON.stringify(tv).includes('@company'));
   const rowOf = (id) => pSheet.getDataRange().getValues().find((x, i) => i > 0 && String(x[0]) === String(id));
   const ph = G.WP_SCHEMA.permits, col = (id, k) => rowOf(id)[ph.indexOf(k)];
   check('sheet: signature files in Drive (private), names stored', /^file_/.test(col(P.id, 'area_sign_file')) && /^file_/.test(col(P.id, 'resp_sign_file')) && gas.stats.sharingCalls === 0);
   check('expiry only after the final approval (end of the work window)', fp.es === 'approved' && fp.end_ts === BKK('2026-10-06T17:00:00') / 1000);
   check('close as before', post({ action: 'decide', session: S, id: P.id, decision: 'close' }).ok);
 
-  // ================================================================ rejection at each stage
+  // ================================================================ rejection at each stage (new order + the legacy stage resp)
   const flowTo = (stage) => {
     const x = post(body({ responsible_id: ids.resp1 })).data;
     if (stage === 'assign') return x;
-    post({ action: 'assign_area', session: SR1, id: x.id, area_owner_id: ids.area1 });
+    if (stage === 'resp') { // a permit from before the order changed: area owner first (old page: assign_area)
+      post({ action: 'assign_area', session: SR1, id: x.id, area_owner_id: ids.area1 });
+      post({ action: 'stage_decide', session: SA1, id: x.id, decision: 'approve', sign: SIG });
+      return x;
+    }
+    post({ action: 'stage_decide', session: SR1, id: x.id, decision: 'approve', sign: SIG, area_owner_id: ids.area1 });
     if (stage === 'area') return x;
     post({ action: 'stage_decide', session: SA1, id: x.id, decision: 'approve', sign: SIG });
-    if (stage === 'resp') return x;
-    post({ action: 'stage_decide', session: SR1, id: x.id, decision: 'approve', sign: SIG });
     return x;
   };
   [['assign', SR1, 'ผู้รับผิดชอบงาน', 'สมศักดิ์ รับผิดชอบ'], ['area', SA1, 'เจ้าของพื้นที่', 'อารี เจ้าของพื้นที่'], ['resp', SR1, 'ผู้รับผิดชอบงาน', 'สมศักดิ์ รับผิดชอบ'], ['safety', S, 'จป.', 'ผู้ดูแลระบบ จป.']].forEach(([st, sess, role, name]) => {
@@ -260,44 +273,83 @@ module.exports = function run() {
     check('reject at ' + st + ': one Attention card with the reason, no token / mention', gas.fetches.length === n + 1 && content(cc).body[0].items[0].color === 'Attention' &&
       facts(cc)['ผลการพิจารณา'] === 'ไม่อนุมัติ' && texts(cc).includes('เหตุผล ' + st) && !gas.fetches[gas.fetches.length - 1].params.payload.includes(x.token) && !content(cc).msteams.entities &&
       (st === 'safety' ? !facts(cc)['ขั้นตอน'] : facts(cc)['ขั้นตอน'] === 'ขั้นที่ ' + G.WP_DATA.stages[st].no + ' — ' + G.WP_DATA.stages[st].label), facts(cc));
-    check('reject at ' + st + ': nothing more possible', post({ action: 'stage_decide', session: sess, id: x.id, decision: 'approve', sign: SIG }).ok === false &&
+    check('reject at ' + st + ': nothing more possible', post({ action: 'stage_decide', session: sess, id: x.id, decision: 'approve', sign: SIG, area_owner_id: ids.area1 }).ok === false &&
       post({ action: 'decide', session: S, id: x.id, decision: 'approve', sign: SIG }).ok === false);
   });
+  check('reject at stage 1: no area owner involved / notified', (() => { const x = flowTo('assign'); post({ action: 'stage_decide', session: SR1, id: x.id, decision: 'reject', comment: 'ไม่ผ่าน' }); const v = post({ action: 'permit', session: S, id: x.id }).data.permit; return v.status === 'rejected' && !v.area_owner_name && post({ action: 'permit', session: SA1, id: x.id }).code === 'NOT_FOUND'; })());
+
+  // ================================================================ in-flight permits from the previous order (area owner → responsible → จป.)
+  {
+    const n0 = gas.fetches.length;
+    const X = post(body({ responsible_id: ids.resp1 })).data;
+    // the old page (cached) picks the area owner without signing: exactly the state of a permit
+    // that was at stage "area" when the new code was deployed
+    r = post({ action: 'assign_area', session: SR1, id: X.id, area_owner_id: ids.area1 });
+    check('legacy: assign_area (cached page) still works → stage area, responsible not approved', r.ok && r.data.stage === 'area' && !post({ action: 'permit', session: S, id: X.id }).data.permit.resp_approved_at, r);
+    check('legacy: the area owner is notified as ขั้นที่ 2', content(lastCard()).body[0].items[0].text === 'รออนุมัติขั้นที่ 2: เจ้าของพื้นที่ — <at>อารี เจ้าของพื้นที่</at>' && gas.fetches.length === n0 + 2);
+    check('legacy area: the responsible may still be reassigned (not approved yet)', post({ action: 'reassign', session: S, id: X.id, responsible_id: ids.resp2 }).data.changed === true &&
+      post({ action: 'reassign', session: S, id: X.id, responsible_id: ids.resp1 }).data.changed === true);
+    r = post({ action: 'stage_decide', session: SA1, id: X.id, decision: 'approve', sign: SIG });
+    check('legacy: area owner approves → stage resp (the responsible still has to approve)', r.ok && r.data.stage === 'resp', r);
+    c = lastCard();
+    check('legacy: card "รออนุมัติขั้นที่ 1: ผู้รับผิดชอบงาน — <at>…</at>"', content(c).body[0].items[0].text === 'รออนุมัติขั้นที่ 1: ผู้รับผิดชอบงาน — <at>สมศักดิ์ รับผิดชอบ</at>' && ents(c)[0].mentioned.id === 'somsak@company.co.th', content(c).body[0]);
+    t = post({ action: 'my_tasks', session: SR1 }).data;
+    check('legacy resp: in the responsible\'s my_tasks', t.pending.some((y) => y.id === X.id && y.stage === 'resp'));
+    const tl2 = get({ action: 'track_list' }).data.find((y) => y.permit_no === X.permit_no);
+    check('legacy resp: track_list waits at the responsible by name', tl2 && tl2.stage === 'resp' && tl2.waiting_name === 'สมศักดิ์ รับผิดชอบ', tl2);
+    check('legacy resp: the area owner cannot act, the จป. cannot decide yet', post({ action: 'stage_decide', session: SA1, id: X.id, decision: 'approve', sign: SIG }).code === 'FORBIDDEN' &&
+      post({ action: 'decide', session: S, id: X.id, decision: 'approve', sign: SIG }).code === 'CONFLICT');
+    r = post({ action: 'stage_decide', session: SR1, id: X.id, decision: 'approve', sign: SIG });
+    check('legacy resp: responsible approves → stage safety', r.ok && r.data.stage === 'safety', r);
+    check('legacy: จป. completes it', post({ action: 'decide', session: S, id: X.id, decision: 'approve', sign: SIG }).data.status === 'approved' &&
+      post({ action: 'permit', session: S, id: X.id }).data.logs.map((l) => l.action).filter((a) => a !== 'reassign').join() === 'submit,assign_area,area_approve,resp_approve,approve');
+    // a row written by the OLD deployment directly at stage resp (area owner approved, responsible pending)
+    const Y = post(body({ responsible_id: ids.resp1 })).data;
+    const yi = pSheet.data.findIndex((row, i) => i > 0 && row && String(row[0]) === String(Y.id));
+    const setCell = (k, v) => { pSheet.data[yi][ph.indexOf(k)] = v; };
+    setCell('stage', 'resp'); setCell('area_owner_id', String(ids.area1)); setCell('area_owner_name', 'อารี เจ้าของพื้นที่');
+    setCell('area_assigned_at', '2026-10-06 08:00:00'); setCell('area_approved_at', '2026-10-06 08:10:00');
+    G.bumpDataVersion_();
+    check('legacy row at stage resp: still with the responsible, then จป.', post({ action: 'permit', session: S, id: Y.id }).data.permit.stage === 'resp' &&
+      post({ action: 'stage_decide', session: SR1, id: Y.id, decision: 'approve', sign: SIG }).data.stage === 'safety' &&
+      post({ action: 'decide', session: S, id: Y.id, decision: 'approve', sign: SIG }).ok);
+  }
 
   // ================================================================ reassignment by the จป.
   const Q = flowTo('assign');
   check('reassign: approver cannot', post({ action: 'reassign', session: SR1, id: Q.id, responsible_id: ids.resp2 }).code === 'FORBIDDEN');
-  check('reassign: area owner at stage 0 refused', post({ action: 'reassign', session: S, id: Q.id, area_owner_id: ids.area2 }).code === 'CONFLICT');
+  check('reassign: area owner at stage 1 refused (not picked yet)', post({ action: 'reassign', session: S, id: Q.id, area_owner_id: ids.area2 }).code === 'CONFLICT');
   check('reassign: to a non-responsible refused', /ไม่ถูกต้อง/.test(post({ action: 'reassign', session: S, id: Q.id, responsible_id: ids.area1 }).error));
   let n = gas.fetches.length;
   r = post({ action: 'reassign', session: S, id: Q.id, responsible_id: ids.resp2 });
   c = lastCard();
-  check('reassign responsible at stage 0: changed + card to the new one (no e-mail → plain name, no entity)', r.ok && r.data.changed && gas.fetches.length === n + 1 &&
-    content(c).body[0].items[0].text === 'รออนุมัติขั้นที่ 0: ผู้รับผิดชอบงาน — วีระ ไม่มีเมล' && !content(c).msteams.entities, content(c).body[0]);
-  check('reassign: old responsible loses access, new one can act', post({ action: 'permit', session: SR1, id: Q.id }).code === 'NOT_FOUND' &&
-    post({ action: 'assign_area', session: SR2, id: Q.id, area_owner_id: ids.area1 }).ok);
+  check('reassign responsible at stage 1: changed + card to the new one (no e-mail → plain name, no entity)', r.ok && r.data.changed && gas.fetches.length === n + 1 &&
+    content(c).body[0].items[0].text === 'รออนุมัติขั้นที่ 1: ผู้รับผิดชอบงาน — วีระ ไม่มีเมล' && !content(c).msteams.entities, content(c).body[0]);
+  check('reassign: old responsible loses access, new one approves + picks the area owner', post({ action: 'permit', session: SR1, id: Q.id }).code === 'NOT_FOUND' &&
+    post({ action: 'stage_decide', session: SR2, id: Q.id, decision: 'approve', sign: SIG, area_owner_id: ids.area1 }).data.stage === 'area');
   const qv = post({ action: 'permit', session: S, id: Q.id }).data;
   check('reassign logged with names', qv.logs.some((l) => l.action === 'reassign' && l.by_name === 'ผู้ดูแลระบบ จป.' && l.note.includes('สมศักดิ์ รับผิดชอบ → วีระ ไม่มีเมล')), qv.logs);
   n = gas.fetches.length;
   r = post({ action: 'reassign', session: S, id: Q.id, area_owner_id: ids.area2 });
-  check('reassign area owner at stage 1 → card mentions the new area owner', r.ok && gas.fetches.length === n + 1 && ents(lastCard())[0].mentioned.id === 'prasert@company.co.th' &&
-    post({ action: 'stage_decide', session: SA1, id: Q.id, decision: 'approve', sign: SIG }).code === 'NOT_FOUND' &&
-    post({ action: 'stage_decide', session: SA2, id: Q.id, decision: 'approve', sign: SIG }).ok);
+  check('reassign area owner at stage 2 → card "ขั้นที่ 2" mentions the new area owner', r.ok && gas.fetches.length === n + 1 && ents(lastCard())[0].mentioned.id === 'prasert@company.co.th' &&
+    content(lastCard()).body[0].items[0].text.startsWith('รออนุมัติขั้นที่ 2: เจ้าของพื้นที่') &&
+    post({ action: 'stage_decide', session: SA1, id: Q.id, decision: 'approve', sign: SIG }).code === 'NOT_FOUND');
   n = gas.fetches.length;
-  r = post({ action: 'reassign', session: S, id: Q.id, responsible_id: ids.resp2 });
-  check('reassign to the same person: no change, no card', r.ok && r.data.changed === false && gas.fetches.length === n);
-  check('reassign at stage 3 refused', (() => { post({ action: 'stage_decide', session: SR2, id: Q.id, decision: 'approve', sign: SIG }); return post({ action: 'reassign', session: S, id: Q.id, responsible_id: ids.resp1 }).code === 'CONFLICT'; })());
+  r = post({ action: 'reassign', session: S, id: Q.id, responsible_id: ids.resp2, area_owner_id: ids.area2 });
+  check('reassign to the same people: no change, no card', r.ok && r.data.changed === false && gas.fetches.length === n);
+  check('new area owner approves → stage 3', post({ action: 'stage_decide', session: SA2, id: Q.id, decision: 'approve', sign: SIG }).data.stage === 'safety');
+  check('reassign at stage 3 refused', post({ action: 'reassign', session: S, id: Q.id, responsible_id: ids.resp1 }).code === 'CONFLICT');
   // role removed while assigned → strict: refused (the จป. must reassign)
   const R3 = flowTo('assign');
   post({ action: 'user_save', session: S, id: ids.resp1, fullname: 'สมศักดิ์ รับผิดชอบ', roles: ['area_owner'], password: '' });
-  check('assignee who lost the role cannot act / read', post({ action: 'assign_area', session: SR1, id: R3.id, area_owner_id: ids.area1 }).code === 'NOT_FOUND');
+  check('assignee who lost the role cannot act / read', post({ action: 'stage_decide', session: SR1, id: R3.id, decision: 'approve', sign: SIG, area_owner_id: ids.area1 }).code === 'NOT_FOUND');
   post({ action: 'user_save', session: S, id: ids.resp1, fullname: 'สมศักดิ์ รับผิดชอบ', roles: ['responsible'], password: '' });
-  check('…and can again once the role is back (same session)', post({ action: 'assign_area', session: SR1, id: R3.id, area_owner_id: ids.area1 }).ok);
+  check('…and can again once the role is back (same session)', post({ action: 'stage_decide', session: SR1, id: R3.id, decision: 'approve', sign: SIG, area_owner_id: ids.area1 }).ok);
   // one person holding both roles may be responsible and area owner of the same permit
   const SB = login('both1');
   const B1 = post(body({ responsible_id: ids.both1 })).data;
-  check('both roles: assign self as area owner, approve both stages', post({ action: 'assign_area', session: SB, id: B1.id, area_owner_id: ids.both1 }).ok &&
-    post({ action: 'stage_decide', session: SB, id: B1.id, decision: 'approve', sign: SIG }).ok && post({ action: 'stage_decide', session: SB, id: B1.id, decision: 'approve', sign: SIG }).data.stage === 'safety');
+  check('both roles: approve as responsible picking self as area owner, then as area owner', post({ action: 'stage_decide', session: SB, id: B1.id, decision: 'approve', sign: SIG, area_owner_id: ids.both1 }).data.stage === 'area' &&
+    post({ action: 'stage_decide', session: SB, id: B1.id, decision: 'approve', sign: SIG }).data.stage === 'safety');
 
   // ================================================================ reminders (time trigger)
   check('reminder trigger: install every 5 min, idempotent, keepWarm untouched', (() => {
@@ -334,7 +386,7 @@ module.exports = function run() {
   c = JSON.parse(remCards()[remCards().length - 1].params.payload);
   check('reminder #1 at 30 min: one card, @mentions the pending person', x.ok && x.due === 1 && x.sent === 1 && remCards().length === rc0 + 1 &&
     content(c).body[0].items[0].text === 'ค้างอนุมัติ 30 นาที — ' + W.permit_no && content(c).body[0].items[0].color === 'Attention' &&
-    texts(c).includes('รออนุมัติขั้นที่ 0: ผู้รับผิดชอบงาน — <at>สมศักดิ์ รับผิดชอบ</at>') && texts(c).includes('แจ้งเตือนครั้งที่ 1/6') &&
+    texts(c).includes('รออนุมัติขั้นที่ 1: ผู้รับผิดชอบงาน — <at>สมศักดิ์ รับผิดชอบ</at>') && texts(c).includes('แจ้งเตือนครั้งที่ 1/6') &&
     ents(c).length === 1 && ents(c)[0].mentioned.id === 'somsak@company.co.th' && !remCards()[remCards().length - 1].params.payload.includes(W.token), texts(c));
   check('reminder bookkeeping stored (count, time), data version NOT replaced', col(W.id, 'reminder_count') === '1' && col(W.id, 'last_reminder_at') === '2026-10-07 09:30:00' &&
     dv() === dv0 && gas.stats.writes === writes0 + 1, { dv0, dv: dv() });
@@ -355,15 +407,14 @@ module.exports = function run() {
   const x3 = runAt('2026-10-07T15:00:00');
   check('reminder: max 6 per stage', x.due === 0 && x3.due === 0 && remCards().length === rc0 + 6);
   SS = fresh();
-  check('stage change restarts the reminders', post({ action: 'assign_area', session: SS.SR1, id: W.id, area_owner_id: ids.area1 }).ok && col(W.id, 'reminder_count') === '0' && col(W.id, 'last_reminder_at') === '');
+  check('stage change restarts the reminders', post({ action: 'stage_decide', session: SS.SR1, id: W.id, decision: 'approve', sign: SIG, area_owner_id: ids.area1 }).ok && col(W.id, 'reminder_count') === '0' && col(W.id, 'last_reminder_at') === '');
   check('new stage: none before 30 min', runAt('2026-10-07T15:29:00').due === 0);
   x = runAt('2026-10-07T15:30:00');
   c = JSON.parse(remCards()[remCards().length - 1].params.payload);
-  check('new stage: reminder @mentions the area owner', x.due === 1 && texts(c).includes('รออนุมัติขั้นที่ 1: เจ้าของพื้นที่ — <at>อารี เจ้าของพื้นที่</at>') && ents(c)[0].mentioned.id === 'aree@company.co.th');
+  check('new stage: reminder @mentions the area owner', x.due === 1 && texts(c).includes('รออนุมัติขั้นที่ 2: เจ้าของพื้นที่ — <at>อารี เจ้าของพื้นที่</at>') && ents(c)[0].mentioned.id === 'aree@company.co.th');
   // stage 3: the active จป.
   SS = fresh();
   post({ action: 'stage_decide', session: SS.SA1, id: W.id, decision: 'approve', sign: SIG });
-  post({ action: 'stage_decide', session: SS.SR1, id: W.id, decision: 'approve', sign: SIG });
   x = runAt('2026-10-07T16:00:00');
   c = JSON.parse(remCards()[remCards().length - 1].params.payload);
   check('stage 3 reminder mentions the จป. (with e-mail)', x.due === 1 && texts(c).includes('รออนุมัติขั้นที่ 3: จป. (เจ้าหน้าที่ความปลอดภัย) — ') && texts(c).includes('<at>ผู้ดูแลระบบ จป.</at>') && ents(c).length === 1, texts(c));
@@ -443,14 +494,14 @@ module.exports = function run() {
   const aid = p1({ action: 'user_save', session: s1, username: 'aa1', fullname: 'A One', roles: ['area_owner'], email: 'a1@x.co', password: 'a1-pass' }).data.id;
   const sr = p1({ action: 'login', username: 'rr1', password: 'r1-pass' }).data.session, sa = p1({ action: 'login', username: 'aa1', password: 'a1-pass' }).data.session;
   const sp = p1(body({ responsible_id: rid, work_date: '2026-10-09' })).data;
-  const ok1 = p1({ action: 'assign_area', session: sr, id: sp.id, area_owner_id: aid }).ok && p1({ action: 'stage_decide', session: sa, id: sp.id, decision: 'approve', sign: SIG }).ok &&
-    p1({ action: 'stage_decide', session: sr, id: sp.id, decision: 'approve', sign: SIG }).ok && p1({ action: 'decide', session: s1, id: sp.id, decision: 'approve', sign: SIG }).ok;
+  const ok1 = p1({ action: 'stage_decide', session: sr, id: sp.id, decision: 'approve', sign: SIG, area_owner_id: aid }).ok && p1({ action: 'stage_decide', session: sa, id: sp.id, decision: 'approve', sign: SIG }).ok &&
+    p1({ action: 'decide', session: s1, id: sp.id, decision: 'approve', sign: SIG }).ok;
   g1.clock.offset += 31 * 60000;
   const sp2 = p1(body({ responsible_id: rid, work_date: '2026-10-09' })).data;
   g1.clock.offset += 31 * 60000;
   const rem = g1.context.checkApprovalReminders();
   check('concatenated .gs: full workflow, reminders + trigger install work', ok1 && sp2 && rem.ok && rem.due === 1 &&
-    g1.context.installApprovalReminderTrigger().installed === 1 && g1.fetches.length === 7, { ok1, rem, n: g1.fetches.length });
+    g1.context.installApprovalReminderTrigger().installed === 1 && g1.fetches.length === 6, { ok1, rem, n: g1.fetches.length });
 
   return { passed, failures };
 };
