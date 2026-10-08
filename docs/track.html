@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ติดตามสถานะ · e-Work Permit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="stylesheet" href="assets/css/app.css?v=8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x26D1;&#xFE0F;</text></svg>">
+</head>
+<body data-layout="public" data-active="track" data-title="ติดตามสถานะ">
+<div id="wp-page">
+<div class="card reveal mb2">
+  <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-list-check ic-bob"></i></span><h3>สถานะใบอนุญาตล่าสุด</h3><span class="spacer"></span><small class="muted">60 วันล่าสุด · อัปเดตอัตโนมัติ</small></div>
+  <div class="tbl-wrap" style="border:0"><table class="tbl"><thead><tr><th>เลขที่ใบอนุญาต</th><th>ผู้รับเหมา</th><th>งานที่เปิด</th><th>วันที่ทำงาน</th><th>สถานะ / ค้างอยู่ที่</th></tr></thead><tbody id="tl-body">
+    <tr><td colspan="5"><div class="empty"><i class="fa-solid fa-spinner fa-spin"></i>กำลังโหลดข้อมูล...</div></td></tr>
+  </tbody></table></div>
+</div>
+<div class="login-wrap" style="min-height:0;margin-top:100px">
+  <div class="card login-card glow-border always reveal" style="max-width:520px">
+    <div class="shield"><i class="fa-solid fa-magnifying-glass-location"></i></div>
+    <h1>ติดตามสถานะใบอนุญาต</h1>
+    <p>ดูรายละเอียดเต็มของใบ: กรอกเลขที่ใบอนุญาต และเบอร์โทรศัพท์ผู้ขออนุญาต</p>
+    <div class="alert err mb2 hide" id="nf"><i class="fa-solid fa-circle-exclamation"></i><div>ไม่พบใบอนุญาตที่ต้องการ</div></div>
+    <form id="tf">
+      <div class="field"><label>เลขที่ใบอนุญาต</label><div class="input-ic"><input class="input" name="permit_no" required placeholder="WP-YYYYMMDD-001" style="text-transform:uppercase"><i class="fa-solid fa-hashtag"></i></div></div>
+      <div class="field"><label>เบอร์โทรศัพท์ผู้ขออนุญาต</label><div class="input-ic"><input class="input" name="phone" required inputmode="tel" placeholder="08x-xxx-xxxx"><i class="fa-solid fa-phone"></i></div></div>
+      <button class="btn lg w100 mt1"><i class="fa-solid fa-magnifying-glass"></i> ค้นหา</button>
+    </form>
+  </div>
+</div>
+</div>
+<script src="config.js"></script>
+<script src="assets/js/data.js?v=8"></script>
+<script src="assets/js/core.js?v=6"></script>
+<script src="assets/js/layout.js?v=6"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="assets/js/app.js?v=7"></script>
+<script src="assets/js/parts.js?v=8"></script>
+<script src="assets/js/pages/track.js?v=4"></script>
+</body>
+</html>

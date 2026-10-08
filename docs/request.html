@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ขอใบอนุญาตปฏิบัติงาน · e-Work Permit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="stylesheet" href="assets/css/app.css?v=8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x26D1;&#xFE0F;</text></svg>">
+</head>
+<body data-layout="public" data-active="request" data-title="ขอใบอนุญาตปฏิบัติงาน" data-edit-layout="admin" data-edit-active="list" data-edit-title="แก้ไขข้อมูลใบอนุญาต">
+<div id="wp-page">
+<div class="card wizard-top glow-border always reveal">
+  <div class="steps" id="steps">
+    <div class="bar" id="steps-bar"></div>
+    <div class="step active" data-step="0"><div class="s-ic"><i class="fa-solid fa-briefcase"></i></div><div class="s-lbl">ประเภท & ลักษณะงาน</div></div>
+    <div class="step" data-step="1"><div class="s-ic"><i class="fa-solid fa-id-card"></i></div><div class="s-lbl">ผู้ขอ & รายละเอียดงาน</div></div>
+    <div class="step" data-step="2"><div class="s-ic"><i class="fa-solid fa-list-check"></i></div><div class="s-lbl">ตรวจสอบความปลอดภัย</div></div>
+    <div class="step" data-step="3"><div class="s-ic"><i class="fa-solid fa-signature"></i></div><div class="s-lbl">ยอมรับระเบียบ & ลงนาม</div></div>
+  </div>
+</div>
+
+<form id="wp-form" autocomplete="off" onsubmit="return false">
+<!-- ===== STEP 1 ===== -->
+<section class="wz-panel active" data-panel="0">
+  <div class="card mb2">
+    <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-building ic-float"></i></span><h3>ข้อมูลใบอนุญาต</h3></div>
+    <div class="card-b grid g2">
+      <div class="field span-all"><label><i class="fa-solid fa-industry"></i> บริษัท (พื้นที่โครงการ) <span class="req">*</span></label>
+        <div class="seg" id="company-seg"></div>
+      </div>
+      <div class="field span-all"><label><i class="fa-solid fa-tags"></i> ประเภท <span class="req">*</span></label>
+        <div class="seg">
+          <label><input type="radio" name="permit_type" value="contractor" checked><span><i class="fa-solid fa-person-digging"></i>งานผู้รับเหมา</span></label>
+          <label><input type="radio" name="permit_type" value="internal"><span><i class="fa-solid fa-people-group"></i>งานภายใน</span></label>
+        </div>
+      </div>
+      <div class="field"><label><i class="fa-regular fa-calendar"></i> วันที่ปฏิบัติงาน <span class="req">*</span></label>
+        <input type="date" class="input" name="work_date" required></div>
+      <div class="grid g2" style="gap:12px">
+        <div class="field"><label><i class="fa-regular fa-clock"></i> เวลา <span class="req">*</span></label><input type="time" class="input" name="time_from" required value="08:00"></div>
+        <div class="field"><label><i class="fa-solid fa-clock"></i> ถึง <span class="req">*</span></label><input type="time" class="input" name="time_to" required value="17:00"></div>
+      </div>
+      <div class="span-all hint"><i class="fa-solid fa-circle-info"></i> ใบขออนุญาตใช้ได้เฉพาะเวลาที่ระบุ และมีอายุไม่เกิน 24 ชั่วโมง</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-helmet-safety ic-swing"></i></span><h3>ลักษณะงาน <span class="req" style="color:var(--red)">*</span></h3><span class="spacer"></span><small class="muted">เลือกได้มากกว่า 1 ข้อ</small></div>
+    <div class="card-b">
+      <div class="wt-grid" id="wt-grid"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== STEP 2 ===== -->
+<section class="wz-panel" data-panel="1">
+  <div class="card mb2">
+    <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-user-pen ic-wiggle"></i></span><h3>ข้อมูลผู้ขออนุญาต</h3></div>
+    <div class="card-b grid g3">
+      <div class="field span-all"><label><i class="fa-solid fa-user"></i> คำนำหน้า</label>
+        <div class="seg">
+          <label><input type="radio" name="requester_title" value="นาย" checked><span>นาย</span></label>
+          <label><input type="radio" name="requester_title" value="นาง"><span>นาง</span></label>
+          <label><input type="radio" name="requester_title" value="นางสาว"><span>นางสาว</span></label>
+        </div>
+      </div>
+      <div class="field"><label><i class="fa-solid fa-signature"></i> ชื่อ - นามสกุล ผู้ขออนุญาต <span class="req">*</span></label><input class="input" name="requester_name" required placeholder="ชื่อ นามสกุล"></div>
+      <div class="field"><label><i class="fa-solid fa-building-user"></i> บริษัท / หน่วยงาน <span class="req">*</span></label><input class="input" name="requester_company" required placeholder="ชื่อบริษัทผู้รับเหมา / แผนก"></div>
+      <div class="field"><label><i class="fa-solid fa-phone"></i> เบอร์โทรศัพท์ <span class="req">*</span></label><input class="input" name="requester_phone" required inputmode="tel" placeholder="08x-xxx-xxxx"></div>
+    </div>
+  </div>
+
+  <div class="card mb2">
+    <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-users-gear ic-beat"></i></span><h3>พนักงานเข้าปฏิบัติงาน</h3><span class="spacer"></span>
+      <span class="badge st-approved"><i class="fa-solid fa-user-group"></i> กรอกรายชื่อ <b id="worker-count">0</b> คน</span></div>
+    <div class="card-b">
+      <div class="field mb2 wc-line"><label><i class="fa-solid fa-people-line"></i> ขออนุญาตนำพนักงานเข้าปฏิบัติงานในพื้นที่โครงการ จำนวน <span class="req">*</span></label>
+        <div class="flex"><input type="number" class="input" name="worker_count" id="worker_total" min="0" max="9999" inputmode="numeric" style="max-width:140px"> <span>คน โดยมีรายชื่อตามเอกสารแนบ</span></div>
+        <div class="hint mt1"><i class="fa-solid fa-circle-info"></i> กรอกรายชื่อด้านล่าง และ/หรือแนบไฟล์รายชื่อในขั้นตอนสุดท้าย — จำนวนต้องไม่น้อยกว่ารายชื่อที่กรอก</div></div>
+      <div class="tbl-wrap"><table class="tbl" id="workers"><thead><tr><th style="width:50px">#</th><th>ชื่อ - นามสกุล</th><th>ตำแหน่ง / หน้าที่</th><th>เลขบัตรประชาชน / บัตรพนักงาน</th><th style="width:60px"></th></tr></thead><tbody></tbody></table></div>
+      <div class="flex mt1">
+        <button type="button" class="btn sm ghost" id="add-worker"><i class="fa-solid fa-user-plus"></i> เพิ่มรายชื่อ</button>
+        <span class="hint">หรือแนบไฟล์รายชื่อในขั้นตอนสุดท้าย</span>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-clipboard ic-bob"></i></span><h3>รายละเอียดงาน</h3></div>
+    <div class="card-b grid g2">
+      <div class="field span-all hide" id="resp-field"><label><i class="fa-solid fa-user-check"></i> ผู้รับผิดชอบงาน (ผู้อนุมัติ) <span class="req">*</span></label>
+        <select class="input" name="responsible_id" id="responsible_id"><option value="">— เลือกผู้รับผิดชอบงาน —</option></select>
+        <div class="hint mt1"><i class="fa-solid fa-route"></i> ลำดับการอนุมัติ: ผู้รับผิดชอบงานระบุเจ้าของพื้นที่ → เจ้าของพื้นที่อนุมัติ → ผู้รับผิดชอบงานอนุมัติ → จป. อนุมัติ (แจ้งเตือนผู้อนุมัติทาง Microsoft Teams)</div></div>
+      <div class="field"><label><i class="fa-solid fa-user-tie"></i> ชื่อผู้รับผิดชอบงานโครงการ <span class="req">*</span></label><input class="input" name="owner_name" required placeholder="ผู้รับผิดชอบงานฝั่งบริษัท"></div>
+      <div class="field"><label><i class="fa-solid fa-phone-volume"></i> เบอร์โทรศัพท์ (ผู้รับผิดชอบงานโครงการ)</label><input class="input" name="owner_phone" inputmode="tel" placeholder="เบอร์ติดต่อ"></div>
+      <div class="field span-all"><label><i class="fa-solid fa-align-left"></i> รายละเอียดงานที่ปฏิบัติ <span class="req">*</span></label><textarea class="input" name="job_detail" required placeholder="อธิบายลักษณะงาน ขอบเขต เครื่องมือ/เครื่องจักรที่ใช้"></textarea></div>
+      <div class="field span-all"><label><i class="fa-solid fa-location-dot"></i> สถานที่ปฏิบัติงาน <span class="req">*</span></label><input class="input" name="location" required placeholder="เช่น อาคารผลิต 2 ชั้น 3 / ห้อง MDB / ถังเก็บน้ำมัน T-01"></div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ===== STEP 3 ===== -->
+<section class="wz-panel" data-panel="2">
+  <div class="alert info mb2"><i class="fa-solid fa-user-shield ic-beat"></i><div><span id="review-note"></span><br><small>ผู้ขอทำเครื่องหมายรายการที่เตรียมพร้อมแล้วได้ — เจ้าของพื้นที่ / ผู้รับผิดชอบงาน / จป. ตรวจสอบและปรับแก้ตามหน้างานเมื่อพิจารณาอนุมัติ</small></div></div>
+  <div id="checklist"></div>
+  <div class="card mt2 hide" id="loto-card" style="--wc:#facc15">
+    <div class="card-h"><span class="ch-ic" style="color:#facc15"><i class="fa-solid fa-lock ic-wiggle"></i></span><h3>ตาราง Lock Out / Tag Out (งานไฟฟ้า)</h3></div>
+    <div class="card-b" id="loto"></div>
+  </div>
+  <div class="card mt2 hide" id="cs-card">
+    <div class="card-h"><span class="ch-ic" style="color:#22d3ee"><i class="fa-solid fa-dungeon ic-float"></i></span><h3>บันทึกงานในที่อับอากาศ (FM-EMR-46)</h3><span class="spacer"></span><small class="muted">กรอกผลตรวจวัดก๊าซก่อนเข้า (ถ้ามี) — บันทึกเพิ่มเติมได้ที่หน้างาน</small></div>
+    <div class="card-b" id="cs-box"></div>
+  </div>
+</section>
+
+<!-- ===== STEP 4 ===== -->
+<section class="wz-panel" data-panel="3">
+  <div id="edit-summary" class="hide"></div>
+  <div class="grid g2 mb2" id="rules-grid">
+    <div class="card">
+      <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-scale-balanced ic-swing"></i></span><h3>ระเบียบปฏิบัติเพื่อความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน</h3></div>
+      <div class="card-b rules">
+        <ol id="rules"></ol></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-handshake ic-beat"></i></span><h3>ข้อตกลงด้านความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน</h3></div>
+      <div class="card-b rules">
+        <ol id="agreement"></ol>
+        <h4><i class="fa-solid fa-recycle"></i> <span id="waste-title"></span></h4>
+        <ol id="waste"></ol></div>
+    </div>
+  </div>
+
+  <div class="card mb2 glow-border always" id="agree-card">
+    <div class="card-b">
+      <label class="ck" style="font-size:16px"><input type="checkbox" id="agree"><span class="box"><i class="fa-solid fa-check"></i></span>
+        <span class="lbl"><b id="agree-text">ข้าพเจ้าได้อ่านและเข้าใจข้อความเบื้องต้นแล้ว และยินดีที่จะปฏิบัติตามกฎระเบียบอย่างเคร่งครัด</b></span></label>
+    </div>
+  </div>
+
+  <div class="card mb2" id="sig-card">
+    <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-pen-fancy ic-wiggle"></i></span><h3>ลงลายมือชื่อ</h3></div>
+    <div class="card-b grid g2" id="sig-area"></div>
+  </div>
+
+  <div class="card" id="attach-card">
+    <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-paperclip ic-swing"></i></span><h3>เอกสารแนบ (ถ้ามี)</h3><span class="spacer"></span><small class="muted">รายชื่อพนักงาน, ปจ.1/ปจ.2, Lifting Plan ฯลฯ · PDF/JPG/PNG/XLS/DOC ≤ <span id="max-mb">10</span>MB · ไฟล์แนบทั้งหมดรวม ≤ <span id="total-mb">25</span>MB</small></div>
+    <div class="card-b">
+      <label class="drop" id="drop"><input type="file" id="attach" hidden accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx,.doc,.docx">
+        <i class="fa-solid fa-cloud-arrow-up"></i>ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b><div class="fname" id="fname"></div></label>
+    </div>
+  </div>
+</section>
+
+<div class="wz-nav">
+  <button type="button" class="btn ghost" id="prev" style="visibility:hidden"><i class="fa-solid fa-arrow-left"></i> ย้อนกลับ</button>
+  <button type="button" class="btn" id="next">ถัดไป <i class="fa-solid fa-arrow-right"></i></button>
+  <button type="button" class="btn gold lg hide" id="submit"><i class="fa-solid fa-paper-plane"></i> ส่งให้ จป. อนุมัติ</button>
+</div>
+</form>
+</div>
+<script src="config.js"></script>
+<script src="assets/js/data.js?v=8"></script>
+<script src="assets/js/core.js?v=6"></script>
+<script src="assets/js/layout.js?v=6"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="assets/js/app.js?v=7"></script>
+<script src="assets/js/parts.js?v=8"></script>
+<script src="assets/js/pages/request-init.js?v=6"></script>
+<script src="assets/js/request.js?v=8"></script>
+</body>
+</html>

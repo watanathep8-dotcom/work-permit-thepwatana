@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ใบอนุญาตทั้งหมด · e-Work Permit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/app.css?v=8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x26D1;&#xFE0F;</text></svg>">
+</head>
+<body data-layout="admin" data-active="list" data-title="ใบอนุญาตทั้งหมด">
+<div id="wp-page">
+<div class="card mb2 reveal">
+  <div class="card-b">
+    <div class="tabs mb2" id="tabs"></div>
+    <form class="filters" method="get" id="filters">
+      <input type="hidden" name="status">
+      <div class="search"><i class="fa-solid fa-magnifying-glass"></i><input class="input" name="q" placeholder="ค้นหา เลขที่ / ชื่อผู้ขอ / บริษัท / สถานที่ / รายละเอียด"></div>
+      <select class="input" name="type"><option value="">ทุกลักษณะงาน</option></select>
+      <input type="date" class="input" name="from" title="วันที่ทำงานตั้งแต่">
+      <input type="date" class="input" name="to" title="ถึงวันที่">
+      <button class="btn"><i class="fa-solid fa-filter"></i> กรอง</button>
+      <a class="btn ghost" id="reset" href="permits.html"><i class="fa-solid fa-rotate-left"></i></a>
+      <button type="button" class="btn ghost" id="export"><i class="fa-solid fa-file-excel"></i> Export CSV</button>
+    </form>
+  </div>
+</div>
+
+<div class="card reveal" id="list"><div class="empty"><i class="fa-solid fa-spinner fa-spin"></i>กำลังโหลดข้อมูล...</div></div>
+</div>
+<script src="../config.js"></script>
+<script src="../assets/js/data.js?v=8"></script>
+<script src="../assets/js/core.js?v=6"></script>
+<script src="../assets/js/layout.js?v=6"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="../assets/js/app.js?v=7"></script>
+<script src="../assets/js/parts.js?v=8"></script>
+<script src="../assets/js/pages/permits.js?v=4"></script>
+</body>
+</html>

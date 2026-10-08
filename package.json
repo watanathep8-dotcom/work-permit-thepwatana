@@ -1,0 +1,10 @@
+{
+  "name": "work-permit",
+  "private": true,
+  "description": "e-Work Permit (FM-MR-58) — GitHub Pages + Google Apps Script",
+  "scripts": {
+    "test": "node test/run.js",
+    "sync-data": "node tools/sync-data.js",
+    "dev": "node test/dev-server.js 8765"
+  }
+}

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>หน้าแรก · e-Work Permit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="stylesheet" href="assets/css/app.css?v=8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x26D1;&#xFE0F;</text></svg>">
+</head>
+<body data-layout="public" data-active="home" data-title="หน้าแรก">
+<div id="wp-page">
+<section class="hero">
+  <div class="reveal">
+    <span class="hero-tag"><span class="dot"></span> ระบบใบขออนุญาตปฏิบัติงานออนไลน์ · <span id="form-code">FM-MR-58</span></span>
+    <h1>ขอ <span class="grad">Work Permit</span><br>ง่าย รวดเร็ว ปลอดภัย</h1>
+    <p class="lead">ผู้รับเหมาและหน่วยงานภายใน กรอกใบขออนุญาตปฏิบัติงาน ลงลายมือชื่อออนไลน์ แล้วส่งตรงถึง <b>เจ้าหน้าที่ความปลอดภัย (จป.)</b> เพื่อตรวจสอบและอนุมัติแบบเรียลไทม์</p>
+    <div class="hero-actions">
+      <a href="request.html" class="btn lg"><i class="fa-solid fa-file-signature"></i> เปิดใบขออนุญาตใหม่</a>
+      <a href="track.html" class="btn lg ghost"><i class="fa-solid fa-magnifying-glass-location"></i> ติดตามสถานะ</a>
+    </div>
+    <div class="hero-stats">
+      <div><b id="st-total">0</b><span>ใบอนุญาตทั้งหมด</span></div>
+      <div><b id="st-approved">0</b><span>กำลังปฏิบัติงาน</span></div>
+      <div><b id="st-pending">0</b><span>รอ จป. อนุมัติ</span></div>
+      <div><b id="st-today">0</b><span>ยื่นวันนี้</span></div>
+    </div>
+  </div>
+  <div class="hero-visual reveal" data-delay="200" id="hero-visual">
+    <div class="hv-ring r2"></div>
+    <div class="hv-ring"></div>
+    <div class="hv-core"><i class="fa-solid fa-helmet-safety"></i></div>
+    <div class="hv-scan"></div>
+  </div>
+</section>
+
+<h2 class="section-title reveal"><i class="fa-solid fa-route ic-bob"></i> ขั้นตอนการขอใบอนุญาต</h2>
+<div class="feature-grid">
+  <div class="card feature glow-border hover-lift reveal" data-tilt>
+    <div class="f-ic"><i class="fa-solid fa-pen-to-square ic-wiggle"></i></div>
+    <h3>1. กรอกข้อมูล</h3>
+    <p>ระบุประเภทงาน ลักษณะงาน วันเวลา สถานที่ และรายชื่อพนักงานที่เข้าปฏิบัติงาน</p>
+  </div>
+  <div class="card feature glow-border hover-lift reveal" data-tilt>
+    <div class="f-ic"><i class="fa-solid fa-list-check ic-beat"></i></div>
+    <h3>2. ตรวจสอบความพร้อม</h3>
+    <p>เช็คลิสต์ความปลอดภัยตามลักษณะงาน พร้อมอุปกรณ์ PPE ที่ต้องใช้</p>
+  </div>
+  <div class="card feature glow-border hover-lift reveal" data-tilt>
+    <div class="f-ic"><i class="fa-solid fa-signature ic-swing"></i></div>
+    <h3>3. ลงนามออนไลน์</h3>
+    <p>ยอมรับระเบียบความปลอดภัย และเซ็นชื่อผู้ขออนุญาตบนหน้าจอได้ทันที</p>
+  </div>
+  <div class="card feature glow-border hover-lift reveal" data-tilt>
+    <div class="f-ic"><i class="fa-solid fa-user-shield ic-float"></i></div>
+    <h3>4. จป. อนุมัติ</h3>
+    <p>จป. ได้รับแจ้งเตือนทันที ตรวจสอบ อนุมัติ และพิมพ์ใบอนุญาตได้</p>
+  </div>
+</div>
+
+<h2 class="section-title reveal"><i class="fa-solid fa-triangle-exclamation ic-flicker"></i> ลักษณะงานที่ต้องขออนุญาต</h2>
+<div class="feature-grid" id="wt-features"></div>
+
+<div class="card glow-border always mt3 reveal">
+  <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-circle-info ic-beat"></i></span><h3>หมายเหตุสำคัญ</h3></div>
+  <div class="card-b rules" style="max-height:none">
+    <ol id="remarks"></ol>
+  </div>
+</div>
+</div>
+<script src="config.js"></script>
+<script src="assets/js/data.js?v=8"></script>
+<script src="assets/js/core.js?v=6"></script>
+<script src="assets/js/layout.js?v=6"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="assets/js/app.js?v=7"></script>
+<script src="assets/js/parts.js?v=8"></script>
+<script src="assets/js/pages/index.js?v=3"></script>
+</body>
+</html>
