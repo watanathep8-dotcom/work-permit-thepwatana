@@ -229,7 +229,10 @@
       <div class="card-h"><span class="ch-ic"><i class="fa-solid fa-signature ic-swing"></i></span><h3>ลายมือชื่อ</h3></div>
       <div class="card-b grid g2">
         <div class="center">${sg.requester ? `<img class="sig-img" src="${sg.requester}">` : ''}<br><small class="text2">ผู้ขออนุญาต (ผู้รับเหมา)<br>${E(p.requester_name)}</small></div>
-        <div class="center">${sg.owner ? `<img class="sig-img" src="${sg.owner}">` : '<div class="muted" style="padding:24px 0">— ยังไม่ลงนาม —</div>'}<br><small class="text2">ผู้รับผิดชอบงานโครงการ<br>${E(p.owner_name)}</small></div>
+        ${(() => { // same rule as the print: without a signature on the request, the responsible's approval signature stands here
+          const img = sg.owner || (p.workflow ? sg.resp : ''), byResp = !sg.owner && p.workflow && sg.resp;
+          return `<div class="center">${img ? `<img class="sig-img" src="${img}">` : '<div class="muted" style="padding:24px 0">— ยังไม่ลงนาม —</div>'}<br><small class="text2">ผู้รับผิดชอบงานโครงการ<br>${E(byResp ? p.responsible_name : p.owner_name)}${byResp && p.resp_approved_at ? `<br>${WP.thaiDate(p.resp_approved_at, true)}` : ''}</small></div>`;
+        })()}
       </div>
     </div>
 
