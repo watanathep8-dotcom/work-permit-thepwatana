@@ -349,7 +349,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
 .tbl tr.row-in { animation: rise .4s both; }
 
 /* Drop zone */
-.drop { border: 2px dashed var(--line-2); border-radius: 16px; padding: 26px; text-align: center; color: var(--text-2); cursor: pointer; transition: .3s; background: rgba(2, 18, 10, .4); }
+.drop { display: block; border: 2px dashed var(--line-2); border-radius: 16px; padding: 26px; text-align: center; color: var(--text-2); cursor: pointer; transition: .3s; background: rgba(2, 18, 10, .4); }
 .drop:hover, .drop.over { border-color: var(--em-2); background: rgba(16, 185, 129, .1); }
 .drop i { font-size: 34px; color: var(--em-2); display: block; margin-bottom: 8px; animation: bob 2s infinite; }
 .drop .fname { color: var(--lime); margin-top: 8px; font-size: 14px; }
