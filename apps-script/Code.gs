@@ -62,7 +62,9 @@ var WP_SCHEMA = {
  */
 //  - permits.work_done_at / work_done_note / work_done_photos: the contractor's "แจ้งเสร็จงาน"
 //    (action work_done, token holder); photos JSON [{fid, name, mime, size, file}] like item_files
+//  - users.phone: the user's phone number (หน้าผู้ใช้งาน), shown to the จป. only
 var WP_SCHEMA_OPTIONAL = {
+  users: ['phone'],
   permits: ['item_files', 'work_done_at', 'work_done_note', 'work_done_photos']
 };
 

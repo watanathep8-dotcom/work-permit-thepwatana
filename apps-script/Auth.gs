@@ -66,7 +66,7 @@ function cleanRoles_(v) {
 function publicUser_(u) {
   return {
     id: Number(u.id), username: u.username, fullname: u.fullname, position: u.position, active: u.active === '1', created_at: u.created_at,
-    roles: userRoles_(u), email: String(u.email || '')
+    roles: userRoles_(u), email: String(u.email || ''), phone: String(u.phone || '')
   };
 }
 
@@ -161,6 +161,8 @@ function apiUserSave_(p, ctx) {
   if (roles && !roles.length) fail_('กรุณาเลือกบทบาทอย่างน้อย 1 บทบาท');
   var email = p.email === undefined || p.email === null ? null : str_(p.email, 200).toLowerCase();
   if (email && !WP_EMAIL_RE.test(email)) fail_('อีเมลไม่ถูกต้อง (ใช้อีเมลบริษัท / Teams เช่น name@company.com)');
+  var phone = p.phone === undefined || p.phone === null ? null : str_(p.phone, 30); // null = not sent (older page): unchanged
+  if (phone && (!/^[0-9+\-() ,/]+$/.test(phone) || phone.replace(/\D/g, '').length < 9)) fail_('เบอร์โทรศัพท์ไม่ถูกต้อง (เช่น 081-234-5678)');
   return withLock_(function () {
     relockCtx_(ctx); // re-read fresh data (unless nothing was written since) + re-check the session
     var me = requireAdmin_(p, ctx);
@@ -176,6 +178,7 @@ function apiUserSave_(p, ctx) {
       u.position = position;
       if (roles) u.roles = roles.join(',');
       if (email !== null) u.email = email;
+      if (phone !== null) { ensureColumn_(t, 'phone'); u.phone = phone; }
       if (pass !== '') {
         var pf = makePasswordFields_(pass);
         u.salt = pf.salt; u.iterations = pf.iterations; u.password_hash = pf.password_hash; u.must_change = '0';
@@ -199,6 +202,7 @@ function apiUserSave_(p, ctx) {
       nu.fullname = fullname;
       nu.roles = (roles || ['safety']).join(',');
       nu.email = email || '';
+      if (phone) { ensureColumn_(t, 'phone'); nu.phone = phone; }
       nu.position = position || (nu.roles.split(',').indexOf('safety') >= 0 ? WP_DATA.config.defaultPosition : '');
       nu.active = '1';
       nu.must_change = '0';

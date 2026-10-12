@@ -257,6 +257,15 @@ module.exports = function run() {
   check('user add', r.ok && r.data.id === 2, r);
   check('duplicate username (case-insensitive)', /มีอยู่แล้ว/.test(post({ action: 'user_save', session: S, username: 'SAFETY2', fullname: 'x', password: '123456' }).error));
   check('default position', post({ action: 'users', session: S }).data.users[1].position === 'เจ้าหน้าที่ความปลอดภัย (จป.วิชาชีพ)');
+  // phone: optional column (users.phone) created on first write, validated, kept when an older page omits it
+  check('user phone: invalid rejected', /เบอร์โทรศัพท์ไม่ถูกต้อง/.test(post({ action: 'user_save', session: S, id: 2, fullname: 'จป. สอง', phone: 'abc123' }).error));
+  check('user phone: too short rejected', /เบอร์โทรศัพท์ไม่ถูกต้อง/.test(post({ action: 'user_save', session: S, id: 2, fullname: 'จป. สอง', phone: '1234' }).error));
+  check('user phone: saved', post({ action: 'user_save', session: S, id: 2, fullname: 'จป. สอง', phone: '081-234-5678' }).ok &&
+    post({ action: 'users', session: S }).data.users[1].phone === '081-234-5678');
+  check('user phone: kept when not sent', post({ action: 'user_save', session: S, id: 2, fullname: 'จป. สอง' }).ok &&
+    post({ action: 'users', session: S }).data.users[1].phone === '081-234-5678');
+  check('user phone: cleared with empty string', post({ action: 'user_save', session: S, id: 2, fullname: 'จป. สอง', phone: '' }).ok &&
+    post({ action: 'users', session: S }).data.users[1].phone === '');
   r = post({ action: 'login', username: 'safety2', password: 'pass-two' });
   check('new user can log in', r.ok);
   const S2 = r.data.session;
