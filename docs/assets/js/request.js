@@ -57,11 +57,15 @@
   $('#add-worker').onclick = () => addWorker();
 
   // ---------- ผู้รับผิดชอบงาน → pre-fills "ชื่อผู้รับผิดชอบงานโครงการ" (still editable) ----------
-  let autoOwner = '';
+  // ... and "เบอร์โทรศัพท์ (ผู้รับผิดชอบงานโครงการ)" from the phone saved in หน้าผู้ใช้งาน
+  let autoOwner = '', autoPhone = '';
   $('#responsible_id').addEventListener('change', e => {
     const o = e.target.selectedOptions[0];
     const name = o && o.value ? o.textContent : '';
     if (!form.owner_name.value.trim() || form.owner_name.value === autoOwner) { form.owner_name.value = name; autoOwner = name; form.owner_name.classList.remove('invalid'); }
+    const u = (WP.respList || []).find(x => String(x.id) === String(o && o.value));
+    const phone = (u && u.phone) || '';
+    if (!form.owner_phone.value.trim() || form.owner_phone.value === autoPhone) { form.owner_phone.value = phone; autoPhone = phone; form.owner_phone.classList.remove('invalid'); }
   });
   const workflow = () => !!(WP.respList && WP.respList.length);
 

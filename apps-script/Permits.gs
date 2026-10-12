@@ -1148,10 +1148,16 @@ function userNameList_(rows) {
   return rows.map(function (u) { return { id: Number(u.id), name: u.fullname }; });
 }
 
-/** PUBLIC: active "ผู้รับผิดชอบงาน" for the request form — id + display name only (no username / e-mail). */
+/**
+ * PUBLIC: active "ผู้รับผิดชอบงาน" for the request form — id + display name + work phone
+ * (pre-fills "เบอร์โทรศัพท์ ผู้รับผิดชอบงานโครงการ"); no username / e-mail.
+ */
 function apiResponsibles_(p, ctx) {
   return cachedRead_(ctx, 'responsibles', null, function () {
-    return { data: userNameList_(activeUsersWithRole_(ctx, 'responsible')), until: nowTs_() + WP_READ_CACHE_TTL };
+    var list = activeUsersWithRole_(ctx, 'responsible').map(function (u) {
+      return { id: Number(u.id), name: u.fullname, phone: String(u.phone || '') };
+    });
+    return { data: list, until: nowTs_() + WP_READ_CACHE_TTL };
   });
 }
 

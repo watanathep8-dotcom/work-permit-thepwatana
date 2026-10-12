@@ -119,9 +119,15 @@ module.exports = function run() {
   // ================================================================ public responsibles list
   r = get({ action: 'responsibles' });
   const raw = JSON.stringify(r);
-  check('GET responsibles: active responsibles, id + name only', r.ok && r.data.length === 3 && r.data.every((x) => Object.keys(x).join() === 'id,name') &&
+  check('GET responsibles: active responsibles, id + name + phone only', r.ok && r.data.length === 3 && r.data.every((x) => Object.keys(x).join() === 'id,name,phone') &&
     r.data.map((x) => x.id).sort().join() === [ids.resp1, ids.resp2, ids.both1].sort().join(), r);
   check('GET responsibles: no e-mail / username / role / hash leaks', !/@|resp1|area|password|salt|email|username/.test(raw), raw);
+  {
+    const u1 = post({ action: 'users', session: S }).data.users.find((u) => u.id === ids.resp1);
+    check('user_save phone for a responsible', post({ action: 'user_save', session: S, id: ids.resp1, fullname: u1.fullname, phone: '089-111-2222' }).ok);
+    const p1 = get({ action: 'responsibles' }).data.find((x) => x.id === ids.resp1);
+    check('GET responsibles: carries the saved phone (pre-fills the request form)', p1 && p1.phone === '089-111-2222', p1);
+  }
   post({ action: 'user_toggle', session: S, id: ids.resp2 });
   const filesB = gas.files.size;
   check('disabled responsible not listed', !get({ action: 'responsibles' }).data.some((x) => x.id === ids.resp2));
