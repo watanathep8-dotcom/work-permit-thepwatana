@@ -572,6 +572,8 @@ function cleanRequestFields_(d, keep) {
   var req = { requester_name: 'ชื่อผู้ขออนุญาต', requester_company: 'บริษัท/หน่วยงาน', requester_phone: 'เบอร์โทรศัพท์', owner_name: 'ผู้รับผิดชอบงานโครงการ', location: 'สถานที่ปฏิบัติงาน', job_detail: 'รายละเอียดงาน' };
   Object.keys(req).forEach(function (k) { if (str_(d[k]) === '') fail_('กรุณากรอก ' + req[k]); });
   var workers = cleanWorkers_(d.workers);
+  // a new request names at least one worker (edits of older permits stay as they were)
+  if (!keep && !workers.length) fail_('กรุณากรอกรายชื่อพนักงานเข้าปฏิบัติงานอย่างน้อย 1 คน');
   // "จำนวน ___ คน โดยมีรายชื่อตามเอกสารแนบ": the stated head count may exceed the typed
   // rows (names in the attached file), never be lower than them
   var count = Math.max(workers.length, Math.min(9999, Math.floor(Number(d.worker_count)) || 0));

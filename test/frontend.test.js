@@ -78,7 +78,7 @@ module.exports = async function run() {
   for (let i = 0; i < 2; i++) {
     r = await WP.api('submit', {
       company: WP.data.companies[0], permit_type: 'contractor', work_types: ['general'], work_date: '2026-10-05', time_from: '08:00', time_to: '17:00',
-      requester_name: 'ผู้ขอ ' + i, requester_company: 'x', requester_phone: '0812345678', owner_name: 'o', location: 'ห้อง ' + i, job_detail: 'j', requester_sign: PNG
+      requester_name: 'ผู้ขอ ' + i, requester_company: 'x', requester_phone: '0812345678', owner_name: 'o', location: 'ห้อง ' + i, job_detail: 'j', workers: [{ name: 'ช่าง' }], requester_sign: PNG
     });
     check('submit ' + i, r.ok, r);
   }
@@ -252,7 +252,7 @@ module.exports = async function run() {
     check('public responsibles (GET): id + name only', pub.ok && pub.data.length === 1 && pub.data[0].id === rid && !JSON.stringify(pub.data).includes('@'), pub);
     const sub = await X.api('submit', {
       company: X.data.companies[0], permit_type: 'contractor', work_types: ['general'], work_date: '2026-10-05', time_from: '08:00', time_to: '17:00',
-      requester_name: 'ผู้ขอ wf', requester_company: 'x', requester_phone: '0812345678', owner_name: '', location: 'ห้อง wf', job_detail: 'j', requester_sign: PNG, responsible_id: rid
+      requester_name: 'ผู้ขอ wf', requester_company: 'x', requester_phone: '0812345678', owner_name: '', location: 'ห้อง wf', job_detail: 'j', workers: [{ name: 'ช่าง' }], requester_sign: PNG, responsible_id: rid
     });
     check('submit with responsible from the browser', sub.ok, sub);
     const rl = (await X.api('login', { username: 'fresp', password: 'pw-fresp' })).data;

@@ -158,6 +158,12 @@
     if (s === 1 && form.requester_phone.value && !/^[0-9+\-\s()]{6,20}$/.test(form.requester_phone.value)) {
       form.requester_phone.classList.add('invalid'); first = form.requester_phone; ok = false;
     }
+    if (s === 1 && ok && !$$('#workers input[data-w=name]').some(i => i.value.trim())) {
+      const n = $('#workers input[data-w=name]');
+      if (n) { n.classList.add('invalid'); n.focus(); n.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      Swal.fire({ icon: 'warning', title: 'กรุณากรอกรายชื่อพนักงาน', text: 'กรอกชื่อพนักงานเข้าปฏิบัติงานอย่างน้อย 1 คน' });
+      return false;
+    }
     if (!ok) { first?.focus(); first?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     return ok;
   };

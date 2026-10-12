@@ -44,7 +44,7 @@ module.exports = function run() {
     action: 'submit', company: G.WP_DATA.companies[0], permit_type: 'contractor', work_types: ['hot'],
     work_date: '2026-10-06', time_from: '08:00', time_to: '17:00', requester_title: 'นาย', requester_name: 'ผู้ขอ ทดสอบ',
     requester_company: 'ผู้รับเหมา ก', requester_phone: '0812345678', owner_name: 'เจ้าของงาน', location: 'อาคาร 1', job_detail: 'เชื่อม',
-    requester_sign: SIG
+    workers: [{ name: 'ช่าง หนึ่ง' }], requester_sign: SIG
   }, o);
   const L1 = post(body()).data, L2 = post(body({ location: 'อาคาร 2' })).data;
   check('legacy: submits without responsibles ok', L1 && L2 && L1.permit_no && L2.permit_no);
@@ -131,6 +131,8 @@ module.exports = function run() {
   // ================================================================ submit (stage 1: the responsible)
   check('submit: responsible required while responsibles exist', post(body()).error === 'กรุณาเลือกผู้รับผิดชอบงาน');
   check('submit: an area owner is not a responsible', /ไม่ถูกต้อง/.test(post(body({ responsible_id: ids.area1 })).error));
+  check('submit: at least one worker name required', /อย่างน้อย 1 คน/.test(post(body({ responsible_id: ids.resp1, workers: [] })).error) &&
+    /อย่างน้อย 1 คน/.test(post(body({ responsible_id: ids.resp1, workers: [{ name: '  ', role: 'ช่าง' }] })).error));
   check('submit: refused submits created no Drive files', gas.files.size === filesB, gas.files.size - filesB);
   gas.propStore.TEAMS_WEBHOOK_URL = HOOK;
   const fetches0 = gas.fetches.length;

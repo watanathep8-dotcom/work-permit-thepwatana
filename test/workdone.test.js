@@ -68,7 +68,7 @@ module.exports = function run() {
     action: 'submit', company: D.companies[0], permit_type: 'contractor', work_types: ['hot'], responsible_id: RID,
     work_date: '2026-10-08', time_from: '08:00', time_to: '17:00', requester_title: 'นาย', requester_name: 'ผู้รับเหมา ทดสอบ',
     requester_company: 'ผู้รับเหมา ก', requester_phone: '0812345678', owner_name: 'เจ้าของงาน', location: 'อาคาร 1', job_detail: 'เชื่อม',
-    requester_sign: SIG
+    workers: [{ name: 'ช่าง หนึ่ง' }], requester_sign: SIG
   }, o);
   const approve = (P) => {
     post({ action: 'assign_area', session: SR, id: P.id, area_owner_id: AID });
