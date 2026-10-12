@@ -28,13 +28,13 @@
     const cur = x.id ? (x.roles || []) : ['safety'];
     return Swal.fire({
     title: x.id ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้',
-    html: `<input id="f-user" class="swal2-input" placeholder="ชื่อผู้ใช้ (a-z, 0-9)" value="${E(x.username || '')}" ${x.id ? 'disabled' : ''}>
-      <input id="f-name" class="swal2-input" placeholder="ชื่อ - นามสกุล (ชื่อที่แสดงใน Teams)" value="${E(x.fullname || '')}">
-      <input id="f-pos" class="swal2-input" placeholder="ตำแหน่ง" value="${E(x.id ? x.position || '' : WP.data.config.defaultPosition)}">
-      <input id="f-phone" type="tel" inputmode="tel" class="swal2-input" autocomplete="off" placeholder="เบอร์โทรศัพท์ (เช่น 081-234-5678)" value="${E(x.phone || '')}">
-      <input id="f-email" type="email" class="swal2-input" autocomplete="off" placeholder="อีเมลบริษัท / Teams (สำหรับ @mention)" value="${E(x.email || '')}">
+    html: `<div class="uf"><label for="f-user">ชื่อผู้ใช้ (ใช้ล็อกอิน)</label><input id="f-user" class="swal2-input" placeholder="ชื่อผู้ใช้ (a-z, 0-9)" value="${E(x.username || '')}" ${x.id ? 'disabled' : ''}></div>
+      <div class="uf"><label for="f-name">ชื่อ - นามสกุล</label><input id="f-name" class="swal2-input" placeholder="ชื่อ - นามสกุล (ชื่อที่แสดงใน Teams)" value="${E(x.fullname || '')}"></div>
+      <div class="uf"><label for="f-pos">ตำแหน่ง</label><input id="f-pos" class="swal2-input" placeholder="ตำแหน่ง" value="${E(x.id ? x.position || '' : WP.data.config.defaultPosition)}"></div>
+      <div class="uf"><label for="f-phone">เบอร์โทรศัพท์</label><input id="f-phone" type="tel" inputmode="tel" class="swal2-input" autocomplete="off" placeholder="เบอร์โทรศัพท์ (เช่น 081-234-5678)" value="${E(x.phone || '')}"></div>
+      <div class="uf"><label for="f-email">อีเมล (Teams)</label><input id="f-email" type="email" class="swal2-input" autocomplete="off" placeholder="อีเมลบริษัท / Teams (สำหรับ @mention)" value="${E(x.email || '')}"></div>
       <div class="role-chips" id="f-roles">${Object.entries(ROLES).map(([k, l]) => `<label><input type="checkbox" value="${k}" ${cur.includes(k) ? 'checked' : ''}> ${E(l)}</label>`).join('')}</div>
-      <input id="f-pass" type="password" class="swal2-input" autocomplete="new-password" placeholder="${x.id ? 'รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)' : 'รหัสผ่าน (≥ 6 ตัว)'}">`,
+      <div class="uf"><label for="f-pass">${x.id ? 'รหัสผ่านใหม่' : 'รหัสผ่าน'}</label><input id="f-pass" type="password" class="swal2-input" autocomplete="new-password" placeholder="${x.id ? 'รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)' : 'รหัสผ่าน (≥ 6 ตัว)'}"></div>`,
     showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก',
     preConfirm: async () => {
       const roles = $$('#f-roles input:checked').map(i => i.value);

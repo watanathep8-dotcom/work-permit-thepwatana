@@ -676,3 +676,8 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
 .wd-dlg .wd-err { color: var(--red); font-size: 12.5px; margin: 6px 2px 0; white-space: pre-line; }
 .wd-dlg .wd-err:empty { display: none; }
 .wd-dlg textarea { width: 100%; min-height: 72px; margin: 10px 0 0 !important; box-sizing: border-box; }
+
+/* add / edit user dialog: a label above every field */
+.uf { max-width: 380px; margin: 12px auto 0; text-align: left; }
+.uf label { display: block; font-size: 13px; color: var(--text-2); margin: 0 0 5px 2px; }
+.uf .swal2-input { margin: 0; width: 100%; max-width: none; box-sizing: border-box; }
