@@ -15,7 +15,7 @@
  *                    checklist, SIGNS the approval and picks the area owner in one action (or rejects)
  *   → stage area    (ขั้นที่ 2) "รอเจ้าของพื้นที่อนุมัติ"   the assigned area owner approves (signature) or rejects
  *   → stage safety  (ขั้นที่ 3) "รอ จป. อนุมัติ"           any จป.: review / approve / reject exactly as before
- *   → approved → inspections / close (expiry counts from the work window, as before)
+ *   → approved → inspections / close (no expiry: stays approved until the จป. closes it)
  * Only the assignee of the current stage may act; a จป. may reassign the
  * responsible (until they approved) / area owner (stage area) but never act for them.
  * A pending permit without responsible_id (created before the workflow, or while
@@ -70,7 +70,7 @@ var WP_HEIF_BRANDS = ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'h
 var WP_ITEM_FILE_NAME_MAX = 150;
 var WP_SIG_MAX = 1500000; // same as sig_ok() in api.php
 
-// ---------------------------------------------------------------- expiry (inc/data.php)
+// ---------------------------------------------------------------- work window (inc/data.php)
 /** Unix seconds of "YYYY-MM-DD HH:MM" in Asia/Bangkok (UTC+7, no DST). */
 function bkkTs_(date, time) {
   var d = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(date || ''));
@@ -79,17 +79,21 @@ function bkkTs_(date, time) {
   return Date.UTC(+d[1], +d[2] - 1, +d[3], t ? +t[1] : 0, t ? +t[2] : 0) / 1000 - 7 * 3600;
 }
 
-/** permit_end_ts(): end of the stated time window (overnight aware), capped at start + 24 h. */
+/**
+ * permit_end_ts(): planned end of the stated work window (overnight aware) — for display
+ * only; a permit does NOT expire at this time.
+ */
 function permitEndTs_(p) {
   var end = bkkTs_(p.work_date, p.time_to);
   if (String(p.time_to) <= String(p.time_from)) end += 86400; // overnight work
-  var max = bkkTs_(p.work_date, p.time_from) + WP_DATA.config.permitValidHours * 3600;
-  return Math.min(end, max);
+  return end;
 }
 
-/** effective_status(): approved permits become "expired" automatically. */
+/**
+ * effective_status(): the stored status. Approved permits no longer expire by the
+ * clock — they stay "approved" until the จป. closes them (status "closed").
+ */
 function effectiveStatus_(p) {
-  if (p.status === 'approved' && nowTs_() > permitEndTs_(p)) return 'expired';
   return p.status;
 }
 
@@ -517,7 +521,7 @@ function apiTrackList_(p, ctx) {
       });
       return out.length >= WP_TRACK_LIST_MAX;
     });
-    return { data: out, until: permitsValidUntil_(rows) };
+    return { data: out, until: todayValidUntil_() }; // the 60-day window depends on "today"
   });
 }
 
@@ -532,7 +536,7 @@ function apiStats_(p, ctx) {
       if (r.status === 'pending') s.pending++;
       if (String(r.created_at).substring(0, 10) === today) s.today++;
     });
-    return { data: s, until: permitsValidUntil_([]) }; // depends on "today" only
+    return { data: s, until: todayValidUntil_() }; // depends on "today" only
   });
 }
 
@@ -784,7 +788,7 @@ function apiFile_(p, ctx) {
 // ---------------------------------------------------------------- TOKEN: contractor reports the work done
 var WP_WORK_DONE_NOTE_MAX = 1000;
 
-/** work_done is allowed once, on an approved permit (also past its work window), never pending / rejected / closed. */
+/** work_done is allowed once, on an approved permit (also past its planned work window), never pending / rejected / closed. */
 function workDoneCheck_(r) {
   if (r.work_done_at) fail_('แจ้งเสร็จงานไปแล้วเมื่อ ' + teamsThaiDate_(r.work_done_at, true), 'CONFLICT');
   if (r.status !== 'approved') {
@@ -894,12 +898,12 @@ function apiDashboard_(p, ctx) {
 
 function dashboardCached_(ctx) {
   return cachedRead_(ctx, 'dashboard', null, function () {
-    return { data: dashboardAgg_(ctx), until: permitsValidUntil_(table_(ctx, 'permits').rows) };
+    return { data: dashboardAgg_(ctx), until: todayValidUntil_() }; // the 14-day chart depends on "today"
   });
 }
 
 function dashboardAgg_(ctx) {
-  var cnt = { pending: 0, approved: 0, rejected: 0, closed: 0, expired: 0 };
+  var cnt = { pending: 0, approved: 0, rejected: 0, closed: 0 };
   var byType = {};
   workTypeKeys_().forEach(function (k) { byType[k] = 0; });
   var days = {}, dayKeys = [];
@@ -937,7 +941,7 @@ function apiPermits_(p, ctx) {
 
 function permitsCached_(ctx, q, type, from, to, status) {
   return cachedRead_(ctx, 'permits', { q: q, type: type, from: from, to: to, status: status }, function () {
-    return { data: permitsList_(ctx, q, type, from, to, status), until: permitsValidUntil_(table_(ctx, 'permits').rows) };
+    return { data: permitsList_(ctx, q, type, from, to, status), until: nowTs_() + WP_READ_CACHE_TTL }; // no clock-dependent fields
   });
 }
 
@@ -1187,7 +1191,7 @@ function apiMyTasks_(p, ctx) {
       else if (recent.length < 50 && (Number(r.responsible_id) === uid || Number(r.area_owner_id) === uid) && canViewPermit_(u, r)) recent.push(listRowOut_(r));
     });
     pending.reverse(); // oldest waiting first
-    return { data: { pending: pending, recent: recent, count: pending.length }, until: permitsValidUntil_(rows) };
+    return { data: { pending: pending, recent: recent, count: pending.length }, until: nowTs_() + WP_READ_CACHE_TTL }; // no clock-dependent fields
   });
 }
 
@@ -1558,7 +1562,7 @@ function apiUpdatePermit_(d, ctx) {
     if (!changed.length) return { changed: [], permit: permitOut_(p, true) };
     changed.forEach(function (k) { p[k] = f[k]; });
     p.updated_at = nowStr_();
-    writeRow_(t, p); // expiry (es / end_ts) is derived from work_date + times on every read
+    writeRow_(t, p); // end_ts (planned end of the work window) is derived from work_date + times on every read
     addLog_(ctx, p.id, 'edit', u.fullname, 'แก้ไขข้อมูล: ' + changed.map(function (k) { return WP_REQUEST_FIELDS[k]; }).join(', '));
     return { changed: changed, permit: permitOut_(p, true) };
   });

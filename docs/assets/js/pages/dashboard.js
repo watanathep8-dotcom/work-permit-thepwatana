@@ -15,8 +15,7 @@
     ['pending', 'รออนุมัติ', 'fa-hourglass-half', 'ic-spin', '#fbbf24'],
     ['approved', 'กำลังปฏิบัติงาน', 'fa-person-digging', 'ic-bob', '#34d399'],
     ['closed', 'ปิดงานแล้ว', 'fa-flag-checkered', 'ic-swing', '#60a5fa'],
-    ['rejected', 'ไม่อนุมัติ', 'fa-ban', 'ic-beat', '#f87171'],
-    ['expired', 'หมดอายุ', 'fa-clock-rotate-left', 'ic-wiggle', '#94a3b8']
+    ['rejected', 'ไม่อนุมัติ', 'fa-ban', 'ic-beat', '#f87171']
   ];
   root.innerHTML = `
 <div class="reset-topbar"><button type="button" id="reset-data" class="btn danger">🗑 รีเซ็ตข้อมูล / Reset data</button></div>
@@ -66,7 +65,7 @@
       ${d.activeNow.map(p => `
         <a href="view.html?id=${p.id}" class="flex between" style="padding:10px 0;border-bottom:1px solid var(--line);color:inherit">
           <div><b class="p-no">${E(p.permit_no)}</b><br><small class="muted"><i class="fa-solid fa-location-dot"></i> ${E(p.location)}</small></div>
-          <div style="text-align:right">${WP.wtTags(p.work_types)}<br><small class="text2"><i class="fa-regular fa-clock"></i> สิ้นสุด <span data-until="${p.end_ts}"></span></small></div>
+          <div style="text-align:right">${WP.wtTags(p.work_types)}<br><small class="text2"><i class="fa-regular fa-clock"></i> เวลาที่ระบุ ${WP.thaiDate(p.work_date)} ${WP.hm(p.time_from)}–${WP.hm(p.time_to)}</small><small class="muted" data-past="${p.end_ts}"></small></div>
         </a>`).join('')}
     </div>
   </div>
@@ -109,8 +108,8 @@
   $('#reset-data').onclick = resetData;
   };
 
-  const fmt = s => { if (s <= 0) return 'หมดเวลา'; const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ' ชม. ' : '') + m + ' นาที'; };
-  const tick = () => document.querySelectorAll('[data-until]').forEach(e => e.textContent = 'ในอีก ' + fmt(+e.dataset.until - Date.now() / 1000));
+  // planned work window only — an approved permit does not expire; it stays active until the จป. closes it
+  const tick = () => document.querySelectorAll('[data-past]').forEach(e => e.textContent = Date.now() / 1000 > +e.dataset.past ? ' · เลยเวลาที่ระบุ' : '');
 
   // ---------- reset all test data (admin session + WP_RESET_PASSWORD) ----------
   const resetData = async () => {

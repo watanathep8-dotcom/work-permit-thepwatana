@@ -181,17 +181,17 @@ module.exports = function run() {
   const R = post(body({ location: 'อาคาร 3' })).data;
   post({ action: 'stage_decide', session: SR, id: R.id, decision: 'reject', comment: 'ไม่ผ่าน' });
   check('rejected permit → CONFLICT', wd(R).code === 'CONFLICT');
-  // approved, past its work window (expired by time) and not closed → still allowed
+  // approved, past its planned work window and not closed → still allowed (permits no longer expire)
   const E = post(body({ location: 'อาคาร 4' })).data;
   approve(E);
   gas.clock.offset += 2 * 86400000;
   S = post({ action: 'login', username: 'admin', password: 'Admin-Pass-1' }).data.session; // sessions last 6 h
   SA = login('area');
-  check('expired by time (es expired, status approved)', post({ action: 'permit', no: E.permit_no, t: E.token }).data.permit.es === 'expired');
+  check('past the work window: still approved (no expiry)', post({ action: 'permit', no: E.permit_no, t: E.token }).data.permit.es === 'approved');
   gas.fetchMode.throws = 'boom ' + HOOK; // Teams failure must not fail the action
   r = wd(E, { photos: [photo('done.png', IMG.png)] });
   gas.fetchMode.throws = null;
-  check('expired-but-approved permit: report ok even when Teams fails', r.ok && r.data.photos === 1, r);
+  check('approved permit past its window: report ok even when Teams fails', r.ok && r.data.photos === 1, r);
   check('Teams failure logged without the URL', !gas.logs.some((l) => l.includes('WD-SECRET')));
   delete gas.propStore.TEAMS_WEBHOOK_URL;
 
@@ -241,7 +241,7 @@ module.exports = function run() {
       /อนุมัติ & ตรวจสอบ \(ก่อนเริ่มงาน \/ หลังเสร็จงาน\)/.test(src);
   })());
   check('print page keeps the paper form (four columns)', !/INSP_MERGED/.test(fs.readFileSync(path.join(ROOT, 'docs/assets/js/pages/print.js'), 'utf8')));
-  check('canReportWorkDone: approved (also expired) & not reported only', WP.canReportWorkDone({ status: 'approved', es: 'approved' }) && WP.canReportWorkDone({ status: 'approved', es: 'expired' }) &&
+  check('canReportWorkDone: approved & not reported only', WP.canReportWorkDone({ status: 'approved', es: 'approved' }) &&
     !WP.canReportWorkDone({ status: 'approved', work_done_at: '2026-10-08 10:00:00' }) && ['pending', 'rejected', 'closed'].every((s) => !WP.canReportWorkDone({ status: s })));
   const wh = WP.workDoneHTML({ status: 'approved', work_done_at: '2026-10-08 16:30:00', work_done_note: 'เสร็จ <script>', work_done_photos: [{ fid: 'abc', name: 'a"b.jpg', mime: 'image/jpeg', size: 10 }] });
   check('workDoneHTML: badge, time, escaped note / names, one tile per photo', /ผู้รับเหมาแจ้งเสร็จงานแล้ว/.test(wh) && /16:30 น\./.test(wh) && /เสร็จ &lt;script&gt;/.test(wh) &&

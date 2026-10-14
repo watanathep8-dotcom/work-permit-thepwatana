@@ -203,8 +203,8 @@ function apiBatch_(p, ctx) {
  * created — that only causes misses, never stale hits.
  * Cached values are admin-wide data or public aggregates only (never file
  * contents, never anything served through a requester's tracking token). Each
- * carries its own "valid until" (approved permits turn "expired" by the clock,
- * "today" changes at midnight) and a short TTL as a backstop for manual sheet edits.
+ * carries its own "valid until" (e.g. "today" changes at midnight — approved permits
+ * no longer expire by the clock) and a short TTL as a backstop for manual sheet edits.
  */
 var WP_DV_KEY = 'wpdv';
 var WP_READ_CACHE_TTL = 300;  // s
@@ -290,17 +290,10 @@ function cachedRead_(ctx, name, params, compute) {
   return res.data;
 }
 
-/** Until when derived permit data stays right by the clock: next Bangkok midnight or the next approved permit's expiry. */
-function permitsValidUntil_(rows) {
-  var now = nowTs_();
+/** Until when data derived from "today" stays right by the clock: the next Bangkok midnight. */
+function todayValidUntil_() {
   var d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(todayStr_());
-  var until = Date.UTC(+d[1], +d[2] - 1, +d[3] + 1) / 1000 - 7 * 3600; // next 00:00 in Asia/Bangkok
-  rows.forEach(function (r) {
-    if (r.status !== 'approved') return;
-    var end = permitEndTs_(r);
-    if (end >= now && end < until) until = end;
-  });
-  return until;
+  return Date.UTC(+d[1], +d[2] - 1, +d[3] + 1) / 1000 - 7 * 3600; // next 00:00 in Asia/Bangkok
 }
 
 // ---------------------------------------------------------------- locking

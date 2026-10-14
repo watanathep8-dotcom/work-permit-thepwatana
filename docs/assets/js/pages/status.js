@@ -65,14 +65,14 @@
   if (p.status === 'rejected') {
     const by = rejStage ? `ขั้นตอน "${E(rejStage.short)}"` : E(p.approver_name);
     h += `<div class="alert err mt2"><i class="fa-solid fa-circle-xmark"></i><div><b>เหตุผลที่ไม่อนุมัติ:</b> ${WP.nl2br(p.approve_comment)}<br><small>โดย ${by} · ${WP.thaiDate(p.approved_at, true)}</small><br><a href="${WP.base}/request.html">ยื่นคำขอใหม่ <i class="fa-solid fa-arrow-right"></i></a></div></div>`;
-  } else if (p.status === 'approved' && es !== 'expired') {
+  } else if (p.status === 'approved') {
     h += `<div class="alert info mt2"><i class="fa-solid fa-circle-check ic-beat"></i><div><b>อนุมัติให้ปฏิบัติงานได้</b> โดย ${E(p.approver_name)} · ${WP.thaiDate(p.approved_at, true)}${p.approve_comment ? '<br>เงื่อนไข/หมายเหตุ: ' + WP.nl2br(p.approve_comment) : ''}</div></div>`;
   } else if (p.status === 'pending') {
     const cur = p.workflow && stg[p.stage];
     const waiting = cur ? `ขั้นที่ ${cur.no}: ${E(cur.label)}${p.stage_started_at ? ` <span class="muted">(ตั้งแต่ ${WP.thaiDate(p.stage_started_at, true)})</span>` : ''}` : 'อยู่ระหว่างรอ จป. พิจารณา';
     h += `<div class="alert warn mt2"><i class="fa-solid fa-hourglass-half ic-spin"></i><div>${waiting} — <b>ห้ามเริ่มปฏิบัติงานจนกว่าจะได้รับอนุมัติ</b> <span class="muted">(หน้านี้จะอัปเดตอัตโนมัติ)</span></div></div>`;
   }
-  // "แจ้งเสร็จงาน": approved (also past its work window), not closed, not reported yet
+  // "แจ้งเสร็จงาน": approved (also past its planned work window), not closed, not reported yet
   if (WP.canReportWorkDone(p)) {
     h += `<div class="alert info mt2 wd-report"><i class="fa-solid fa-camera ic-bob"></i><p>ปฏิบัติงานเสร็จแล้ว? แจ้งเสร็จงานพร้อมแนบรูปถ่ายพื้นที่หลังเสร็จงาน เพื่อให้ผู้รับผิดชอบงาน / เจ้าของพื้นที่ / จป. ตรวจสอบและปิดงาน</p>
     <button type="button" class="btn" id="btn-work-done"><i class="fa-solid fa-flag-checkered"></i> แจ้งเสร็จงาน</button></div>`;

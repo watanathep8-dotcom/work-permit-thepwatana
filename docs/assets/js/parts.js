@@ -126,7 +126,6 @@
       const when = bad ? WP.thaiDate(p.approved_at, true) : (at ? WP.thaiDate(at, true) : (cur && st === 'pending' ? 'กำลังรอ' : ''));
       return `<div class="ts ${on ? 'on ' : ''}${cur ? 'cur ' : ''}${bad ? 'bad' : ''}"><div class="ts-ic"><i class="fa-solid ${bad ? 'fa-xmark' : ic}"></i></div><span>${E(bad ? 'ไม่อนุมัติ' : lbl)}</span>${when ? `<small class="ts-at">${E(when)}</small>` : ''}</div>`;
     }).join('') + '</div>';
-    if (p.es === 'expired') h += `<div class="alert warn mt1"><i class="fa-solid fa-clock"></i><div>ใบอนุญาตนี้ <b>หมดอายุแล้ว</b> (เกินเวลาที่ระบุ / เกิน ${D.config.permitValidHours} ชม.) หากงานยังไม่เสร็จต้องขออนุญาตใหม่</div></div>`;
     return h;
   };
 
@@ -144,7 +143,6 @@
       const bad = i === 2 && st === 'rejected';
       return `<div class="ts ${on ? 'on ' : ''}${cur ? 'cur ' : ''}${bad ? 'bad' : ''}"><div class="ts-ic"><i class="fa-solid ${ic}"></i></div><span>${lbl}</span></div>`;
     }).join('') + '</div>';
-    if (p.es === 'expired') h += `<div class="alert warn mt1"><i class="fa-solid fa-clock"></i><div>ใบอนุญาตนี้ <b>หมดอายุแล้ว</b> (เกินเวลาที่ระบุ / เกิน ${D.config.permitValidHours} ชม.) หากงานยังไม่เสร็จต้องขออนุญาตใหม่</div></div>`;
     return h;
   };
 

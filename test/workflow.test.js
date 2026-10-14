@@ -250,7 +250,7 @@ module.exports = function run() {
   const rowOf = (id) => pSheet.getDataRange().getValues().find((x, i) => i > 0 && String(x[0]) === String(id));
   const ph = G.WP_SCHEMA.permits, col = (id, k) => rowOf(id)[ph.indexOf(k)];
   check('sheet: signature files in Drive (private), names stored', /^file_/.test(col(P.id, 'area_sign_file')) && /^file_/.test(col(P.id, 'resp_sign_file')) && gas.stats.sharingCalls === 0);
-  check('expiry only after the final approval (end of the work window)', fp.es === 'approved' && fp.end_ts === BKK('2026-10-06T17:00:00') / 1000);
+  check('approved after the final approval; planned end = end of the work window', fp.es === 'approved' && fp.end_ts === BKK('2026-10-06T17:00:00') / 1000);
   check('close as before', post({ action: 'decide', session: S, id: P.id, decision: 'close' }).ok);
 
   // ================================================================ rejection at each stage (new order + the legacy stage resp)

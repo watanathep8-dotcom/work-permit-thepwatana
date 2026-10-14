@@ -226,23 +226,27 @@ module.exports = function run() {
   const c1 = post({ action: 'permit', no: P1.permit_no, t: P1.token }).data;
   check('close', r.ok && c1.permit.status === 'closed' && c1.permit.closed_at && c1.logs.some((l) => l.action === 'close' && l.note === 'ตรวจสอบหลังเสร็จงาน ปิดใบอนุญาต'));
 
-  // ================================================================ expiry
+  // ================================================================ no expiry (planned work window only)
   const end = (wd, f, t) => G.permitEndTs_({ work_date: wd, time_from: f, time_to: t });
   check('end = time_to same day', end('2026-10-05', '08:00', '17:00') === BKK('2026-10-05T17:00:00') / 1000);
   check('overnight end next day', end('2026-10-05', '20:00', '06:00') === BKK('2026-10-06T06:00:00') / 1000);
-  check('equal times → capped at +24h', end('2026-10-05', '08:00', '08:00') === BKK('2026-10-06T08:00:00') / 1000);
+  check('equal times → +24h', end('2026-10-05', '08:00', '08:00') === BKK('2026-10-06T08:00:00') / 1000);
   const b3 = base(); delete b3.attachment; b3.work_types = ['general']; b3.time_from = '20:00'; b3.time_to = '06:00';
   const P3 = post(b3).data;
   post({ action: 'decide', session: S, id: P3.id, decision: 'approve', sign: SIG });
   setNow('2026-10-06T05:59:00');
   S = post({ action: 'login', username: 'admin', password: INIT_PW }).data.session; // previous session is > 6 h old now
-  check('overnight permit still valid at 05:59 next day', post({ action: 'permit', no: P3.permit_no, t: P3.token }).data.permit.es === 'approved');
+  check('overnight permit approved at 05:59 next day', post({ action: 'permit', no: P3.permit_no, t: P3.token }).data.permit.es === 'approved');
   setNow('2026-10-06T06:01:00');
   const e3 = post({ action: 'permit', no: P3.permit_no, t: P3.token }).data.permit;
-  check('auto-expired after end time', e3.status === 'approved' && e3.es === 'expired');
-  check('dashboard counts expired', post({ action: 'dashboard', session: S }).data.cnt.expired === 1);
-  check('permits status=expired', post({ action: 'permits', session: S, status: 'expired' }).data.rows.map((x) => x.id).join() === String(P3.id));
-  check('expired (approved) can still be closed like PHP', post({ action: 'decide', session: S, id: P3.id, decision: 'close' }).ok);
+  check('past the planned end time → still approved (no auto-expiry)', e3.status === 'approved' && e3.es === 'approved' && e3.end_ts === BKK('2026-10-06T06:00:00') / 1000, e3);
+  const d3 = post({ action: 'dashboard', session: S }).data;
+  check('dashboard: no expired count; counted as approved and still active', !('expired' in d3.cnt) && d3.cnt.approved >= 1 && d3.activeNow.some((x) => x.id === P3.id), d3.cnt);
+  const pl3 = post({ action: 'permits', session: S }).data;
+  check('permits list: no expired tab; row stays approved', !('expired' in pl3.counts) && pl3.rows.find((x) => x.id === P3.id).es === 'approved', pl3.counts);
+  check('permits status=expired → ignored (unknown status filter)', post({ action: 'permits', session: S, status: 'expired' }).data.rows.length === pl3.rows.length);
+  check('status definitions: no expired', !G.WP_DATA.status.expired && !('permitValidHours' in G.WP_DATA.config));
+  check('approved past its window can be closed', post({ action: 'decide', session: S, id: P3.id, decision: 'close' }).ok);
   r = post(Object.assign(base(), { attachment: null }));
   check('numbering restarts per Bangkok day', r.ok && r.data.permit_no === 'WP-20261006-001', r);
   const P4 = r.data;
@@ -397,7 +401,7 @@ module.exports = function run() {
     check('company no longer offered: rejected when an edit switches to it', /บริษัท/.test(String(tryClean({ company: G.WP_DATA.companies[0] }))));
   }
   check('edit: status / permit_no / token / approvals / signatures / created_at untouched', keepCols.every((k, i) => col(P4.id, k) === keepBefore[i]) && ep.status === 'pending' && !ep.approver_name, keepCols.map((k) => col(P4.id, k)));
-  check('edit: expiry recomputed from new date/time (overnight)', ep && ep.end_ts === BKK('2026-10-08T04:00:00') / 1000 && ep.es === 'pending');
+  check('edit: planned end recomputed from new date/time (overnight)', ep && ep.end_ts === BKK('2026-10-08T04:00:00') / 1000 && ep.es === 'pending');
   const editLog = e4 && e4.logs[e4.logs.length - 1];
   check('edit: log row "แก้ไขข้อมูล" with admin name and changed fields', editLog && editLog.action === 'edit' && editLog.by_name === 'ผู้ดูแลระบบ จป.' &&
     /^แก้ไขข้อมูล: /.test(editLog.note) && /บริษัท \(พื้นที่\)/.test(editLog.note) && /สถานที่ปฏิบัติงาน/.test(editLog.note) && !/คำนำหน้า/.test(editLog.note) && logRows() === logsBefore0 + 1, editLog);
@@ -419,17 +423,17 @@ module.exports = function run() {
   const k5 = post({ action: 'permit', session: S, id: P4.id }).data.permit;
   check('edit: omitted optional sections kept', r.ok && r.data.changed.length === 0 && k5.confined.gas[0].o2 === '20.5' && k5.checklist.h1 === true && k5.loto.length === 1, r);
 
-  // expiry re-check on an approved permit
+  // editing the date/time of an approved permit never expires it
   check('approve edited permit', post({ action: 'decide', session: S, id: P4.id, decision: 'approve', sign: SIG }).ok);
   const apprCols = ['status', 'approver_name', 'approver_sign_file', 'approved_at', 'inspections'];
   const apprBefore = apprCols.map((k) => col(P4.id, k));
   check('approved + future date → approved', post({ action: 'permit', session: S, id: P4.id }).data.permit.es === 'approved');
   r = post(editBody({ work_types: ['confined'], work_date: '2026-10-05', time_from: '08:00', time_to: '17:00' }));
   const x4 = post({ action: 'permit', session: S, id: P4.id }).data.permit;
-  check('edit to a past date → expired immediately; approval kept', r.ok && x4.status === 'approved' && x4.es === 'expired' && x4.end_ts === BKK('2026-10-05T17:00:00') / 1000 &&
+  check('edit to a past date → still approved; approval kept', r.ok && x4.status === 'approved' && x4.es === 'approved' && x4.end_ts === BKK('2026-10-05T17:00:00') / 1000 &&
     apprCols.every((k, i) => col(P4.id, k) === apprBefore[i]), x4);
   r = post(editBody({ work_types: ['confined'], work_date: '2026-10-06', time_from: '08:00', time_to: '23:00' }));
-  check('edit back into the window → approved again', r.ok && post({ action: 'permit', session: S, id: P4.id }).data.permit.es === 'approved', r);
+  check('edit back into the window → approved', r.ok && post({ action: 'permit', session: S, id: P4.id }).data.permit.es === 'approved', r);
 
   // delete
   const fileIds = fileCols.map((k) => col(1, k)).filter(Boolean);
@@ -512,7 +516,7 @@ module.exports = function run() {
     ['dashboard', () => post({ action: 'dashboard', session: S })],
     ['permits', () => post({ action: 'permits', session: S })],
     ['permits pending', () => post({ action: 'permits', session: S, status: 'pending' })],
-    ['permits expired', () => post({ action: 'permits', session: S, status: 'expired' })],
+    ['permits approved', () => post({ action: 'permits', session: S, status: 'approved' })],
     ['permits q', () => post({ action: 'permits', session: S, q: 'ห้อง' })],
     ['poll', () => post({ action: 'poll', session: S })],
     ['poll since 0', () => post({ action: 'poll', session: S, since: 0 })],
@@ -569,12 +573,12 @@ module.exports = function run() {
   write('decide approve', () => post({ action: 'decide', session: S, id: P6.id, decision: 'approve', sign: SIG }));
   check('approved permit in dashboard activeNow', post({ action: 'dashboard', session: S }).data.activeNow.some((x) => x.id === P6.id));
 
-  // the clock alone (no write) turns a cached "approved" into "expired"
+  // the clock passing the planned end time does not change an approved permit
   warm();
   setNow('2026-10-06T11:01:00');
   const d11 = post({ action: 'dashboard', session: S }).data;
-  check('cached dashboard follows expiry by the clock', !d11.activeNow.some((x) => x.id === P6.id) && post({ action: 'permits', session: S, status: 'expired' }).data.rows.some((x) => x.id === P6.id), d11);
-  consistent('expiry time passed');
+  check('cached dashboard: approved stays active after the planned end', d11.activeNow.some((x) => x.id === P6.id) && post({ action: 'permits', session: S, status: 'approved' }).data.rows.some((x) => x.id === P6.id), d11);
+  consistent('planned end time passed');
 
   write('decide reject', () => post({ action: 'decide', session: S, id: 2, decision: 'reject', comment: 'ไม่ครบ' }));
   write('decide close', () => post({ action: 'decide', session: S, id: P6.id, decision: 'close' }));
