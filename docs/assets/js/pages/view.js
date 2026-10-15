@@ -179,7 +179,7 @@
   <div class="actions">
     ${myStage ? `<a class="btn gold" href="#wf-card"><i class="fa-solid fa-gavel"></i> อนุมัติ / ไม่อนุมัติ</a>` : ''}
     <a class="btn ghost" href="../print.html?id=${p.id}" target="_blank"><i class="fa-solid fa-print"></i> พิมพ์</a>
-    ${safety ? `<a class="btn ghost" id="btn-edit" href="../request.html?edit=${p.id}" title="แก้ไขข้อมูลที่ผู้ขอกรอก (ต้องใช้รหัสผ่าน Reset password)">✏️ แก้ไข</a>
+    ${safety ? `<a class="btn ghost" id="btn-edit" href="../request.html?edit=${p.id}" title="แก้ไขข้อมูลที่ผู้ขอกรอก (ต้องใช้รหัสแก้ไขข้อมูลของคุณ — รหัสเฉพาะ จป.)">✏️ แก้ไข</a>
     <button class="btn danger" id="btn-del" title="ลบใบอนุญาต (ต้องใช้รหัสผ่าน Reset password)">🗑 ลบ</button>` : `<a class="btn ghost" href="approvals.html"><i class="fa-solid fa-inbox"></i> รออนุมัติของฉัน</a>`}
   </div>
 </div>

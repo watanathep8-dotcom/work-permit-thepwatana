@@ -63,8 +63,10 @@ var WP_SCHEMA = {
 //  - permits.work_done_at / work_done_note / work_done_photos: the contractor's "แจ้งเสร็จงาน"
 //    (action work_done, token holder); photos JSON [{fid, name, mime, size, file}] like item_files
 //  - users.phone: the user's phone number (หน้าผู้ใช้งาน), shown to the จป. only
+//  - users.edit_salt / edit_iterations / edit_hash: the จป.'s personal "รหัสแก้ไขข้อมูล"
+//    (set by a จป. on หน้าผู้ใช้งาน, hashed like login passwords; never leaves the server)
 var WP_SCHEMA_OPTIONAL = {
-  users: ['phone'],
+  users: ['phone', 'edit_salt', 'edit_iterations', 'edit_hash'],
   permits: ['item_files', 'work_done_at', 'work_done_note', 'work_done_photos']
 };
 
@@ -130,7 +132,7 @@ function routes_() {
     save_review: apiSaveReview_,
     decide: apiDecide_,
     'delete': apiDelete_,           // + reset password
-    update_permit: apiUpdatePermit_, // + reset password
+    update_permit: apiUpdatePermit_, // + the จป.'s own edit password (รหัสแก้ไขข้อมูล)
     users: apiUsers_,
     user_save: apiUserSave_,
     user_toggle: apiUserToggle_,

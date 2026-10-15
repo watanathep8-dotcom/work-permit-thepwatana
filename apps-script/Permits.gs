@@ -1430,24 +1430,23 @@ function apiReassign_(d, ctx) {
   return out;
 }
 
-// ---------------------------------------------------------------- RESET / DELETE / EDIT (admin + reset password)
+// ---------------------------------------------------------------- RESET / DELETE (admin + reset password), EDIT (admin + own edit password)
 var WP_PROP_RESET_PASSWORD = 'WP_RESET_PASSWORD';
 var WP_RESET_MAX_FAIL = 10;
 var WP_RESET_FAIL_KEY = 'wprf_reset'; // one global counter (not per user), separate from login lockout
 
 /**
- * Second factor for destructive / corrective admin actions (reset_data,
- * delete, update_permit): the password stored only in Script Property
- * WP_RESET_PASSWORD, sent as `resetPassword`. One shared failure counter:
- * 10 wrong passwords lock all three actions for 15 minutes.
+ * Second factor for destructive admin actions (reset_data, delete): the password
+ * stored only in Script Property WP_RESET_PASSWORD, sent as `resetPassword`. One
+ * shared failure counter: 10 wrong passwords lock both actions for 15 minutes.
+ * (update_permit uses the จป.'s own edit password instead: requireEditPassword_, Auth.gs.)
  */
 var WP_RESET_WHAT = {
   reset: { label: 'รหัสผ่านสำหรับรีเซ็ตข้อมูล', locked: 'ระงับการรีเซ็ต' },
-  'delete': { label: 'รหัสผ่านยืนยัน (Reset password) ', locked: 'ระงับการลบ/แก้ไข/รีเซ็ต' },
-  update: { label: 'รหัสผ่านยืนยัน (Reset password) ', locked: 'ระงับการลบ/แก้ไข/รีเซ็ต' }
+  'delete': { label: 'รหัสผ่านยืนยัน (Reset password) ', locked: 'ระงับการลบ/รีเซ็ต' }
 };
 function requireResetPassword_(p, what) {
-  var w = WP_RESET_WHAT[what] || WP_RESET_WHAT.update;
+  var w = WP_RESET_WHAT[what] || WP_RESET_WHAT['delete'];
   var expected = String(props_().getProperty(WP_PROP_RESET_PASSWORD) || '');
   if (!expected) {
     fail_('ยังไม่ได้ตั้งรหัสผ่านสำหรับรีเซ็ตข้อมูล กรุณาตั้งค่า Script Property "' + WP_PROP_RESET_PASSWORD +
@@ -1541,11 +1540,12 @@ function sameValue_(a, b) {
  * Only the request-form fields (WP_REQUEST_FIELDS) can change, validated exactly
  * like submit; permit_no, token, status, approvals, inspections, signatures,
  * attachment and logs are never touched (extra keys in the payload are ignored).
- * Requires an admin session AND the reset password. Logs "แก้ไขข้อมูล".
+ * Requires a จป. session AND that จป.'s OWN edit password (รหัสแก้ไขข้อมูล, set by
+ * a จป. on หน้าผู้ใช้งาน) — not the shared reset password. Logs "แก้ไขข้อมูล" with
+ * the editor's name and username and the changed fields.
  */
 function apiUpdatePermit_(d, ctx) {
-  requireAdmin_(d, ctx);
-  requireResetPassword_(d, 'update');
+  requireEditPassword_(d, requireAdmin_(d, ctx));
   return withLock_(function () {
     relockCtx_(ctx); // re-read fresh data (unless nothing was written since) + re-check the session
     var u = requireAdmin_(d, ctx);
@@ -1563,7 +1563,8 @@ function apiUpdatePermit_(d, ctx) {
     changed.forEach(function (k) { p[k] = f[k]; });
     p.updated_at = nowStr_();
     writeRow_(t, p); // end_ts (planned end of the work window) is derived from work_date + times on every read
-    addLog_(ctx, p.id, 'edit', u.fullname, 'แก้ไขข้อมูล: ' + changed.map(function (k) { return WP_REQUEST_FIELDS[k]; }).join(', '));
+    addLog_(ctx, p.id, 'edit', u.fullname, 'แก้ไขข้อมูล: ' + changed.map(function (k) { return WP_REQUEST_FIELDS[k]; }).join(', ') +
+      ' — แก้ไขโดย จป. ' + u.fullname);
     return { changed: changed, permit: permitOut_(p, true) };
   });
 }

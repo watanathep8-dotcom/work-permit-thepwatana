@@ -304,13 +304,14 @@ module.exports = function run() {
   // ================================================================ edit / delete (admin session + reset password)
   const pSheet = ss.getSheetByName('permits'), lSheet = ss.getSheetByName('permit_logs');
   const RESET_PW = 'Reset-Only-For-Tests-9';
+  const EDIT_A = 'fake-edit-admin-1', EDIT_B = 'fake-edit-safety2-2'; // per-จป. edit passwords (test values only)
   const findRow = (id) => pSheet.getDataRange().getValues().find((x, i) => i > 0 && String(x[0]) === String(id));
   const rowOf = (id) => { const row = findRow(id); return row ? JSON.stringify(row) : null; };
   const col = (id, k) => { const row = findRow(id); return row ? row[ph.indexOf(k)] : undefined; };
   const logRows = () => lSheet.getLastRow() - 1;
   const editBody = (o = {}) => {
     const b = Object.assign(base(), {
-      action: 'update_permit', session: S, id: P4.id, resetPassword: RESET_PW,
+      action: 'update_permit', session: S, id: P4.id, editPassword: EDIT_A,
       company: G.WP_DATA.companies[1], permit_type: 'internal', work_types: ['general', 'hot', 'nope'],
       work_date: '2026-10-07', time_from: '22:00', time_to: '04:00',
       requester_name: 'สมชาย (แก้)', requester_company: 'ผู้รับเหมา ข', requester_phone: '0822222222',
@@ -331,33 +332,83 @@ module.exports = function run() {
   check('edit: token holder (no session) → AUTH', post(editBody({ session: undefined, no: P4.permit_no, t: P4.token })).code === 'AUTH');
   check('delete: no session → AUTH', post({ action: 'delete', id: P4.id, resetPassword: RESET_PW }).code === 'AUTH');
   r = post(editBody());
-  check('edit: refused while WP_RESET_PASSWORD unset', !r.ok && r.code === 'SETUP' && /WP_RESET_PASSWORD/.test(r.error), r);
+  check('edit: จป. without an edit password → clear error (ask the admin)', !r.ok && r.code === 'NO_EDIT_PASSWORD' && /ยังไม่มีรหัสแก้ไขข้อมูล/.test(r.error) && /ผู้ดูแลระบบ/.test(r.error), r);
   r = post({ action: 'delete', session: S, id: P4.id, resetPassword: RESET_PW });
   check('delete: refused while WP_RESET_PASSWORD unset', !r.ok && r.code === 'SETUP', r);
   r = post({ action: 'reset_data', session: S, resetPassword: RESET_PW });
   check('reset: refused while WP_RESET_PASSWORD unset', !r.ok && r.code === 'SETUP' && /WP_RESET_PASSWORD/.test(r.error), r);
   check('reset password is not in the source', !['Code.gs', 'Auth.gs', 'Permits.gs', 'Setup.gs'].some((f) => /WP_RESET_PASSWORD['"]?\s*[:=]\s*['"][^'"]+['"]/.test(fs.readFileSync(path.join(ROOT, 'apps-script', f), 'utf8'))));
   gas.propStore.WP_RESET_PASSWORD = RESET_PW;
+  r = post(editBody({ editPassword: RESET_PW }));
+  check('edit: still NO_EDIT_PASSWORD once the reset password exists (reset password never edits)', !r.ok && r.code === 'NO_EDIT_PASSWORD', r);
+
+  // -- รหัสแก้ไขข้อมูล: set per จป. by a จป. on หน้าผู้ใช้งาน (user_save edit_password)
+  const uSheet = ss.getSheetByName('users');
+  const uCol = (id, h) => { const v = uSheet.getDataRange().getValues(); const i = v[0].indexOf(h); const row = v.find((x, j) => j > 0 && String(x[0]) === String(id)); return i < 0 || !row ? undefined : row[i]; };
+  const saveEdit = (id, pw, o = {}) => post(Object.assign({ action: 'user_save', session: S, id, fullname: id === 1 ? 'ผู้ดูแลระบบ จป.' : 'จป. สอง', edit_password: pw }, o));
+  check('edit password: setupSystem creates the optional columns, empty', uSheet.getDataRange().getValues()[0].indexOf('edit_hash') >= 0 && !uCol(1, 'edit_hash') && !uCol(1, 'edit_salt'));
+  r = saveEdit(1, '12345');
+  check('edit password: shorter than 6 rejected', !r.ok && /อย่างน้อย 6/.test(r.error), r);
+  r = saveEdit(1, RESET_PW);
+  check('edit password: equal to the reset password rejected', !r.ok && /ไม่ซ้ำกับรหัสผ่านสำหรับรีเซ็ต/.test(r.error), r);
+  r = saveEdit(1, 'Brand-New-1');
+  check('edit password: equal to own login password rejected', !r.ok && /ไม่ซ้ำกับรหัสผ่านเข้าสู่ระบบ/.test(r.error), r);
+  r = saveEdit(1, 'same-as-new-login', { password: 'same-as-new-login' });
+  check('edit password: equal to the new login password rejected', !r.ok && /ไม่ซ้ำกับรหัสผ่านเข้าสู่ระบบ/.test(r.error), r);
+  check('edit password: rejected saves change nothing', !uCol(1, 'edit_hash') && post({ action: 'login', username: 'admin', password: 'Brand-New-1' }).ok);
+  gas.logs.length = 0;
+  r = saveEdit(1, EDIT_A);
+  check('edit password: set for admin', r.ok, r);
+  check('edit password: stored hashed + salted (like login passwords)', /^[a-f0-9]{64}$/.test(String(uCol(1, 'edit_hash'))) && /^[a-f0-9]{32}$/.test(String(uCol(1, 'edit_salt'))) &&
+    String(uCol(1, 'edit_iterations')) === '5000' && String(uCol(1, 'edit_hash')) !== String(uCol(1, 'password_hash')) && !uSheet.getDataRange().getValues().some((row) => row.indexOf(EDIT_A) >= 0));
+  check('edit password: audit note in the execution log (no password)', gas.logs.some((l) => l.startsWith('LOG WP edit password ตั้ง: user admin') && / by admin /.test(l)) && !gas.logs.some((l) => l.indexOf(EDIT_A) >= 0), gas.logs);
+  r = saveEdit(2, EDIT_B);
+  check('edit password: set for another จป.', r.ok, r);
+  r = post({ action: 'users', session: S });
+  const usersJson = JSON.stringify(r.data);
+  check('edit password: users list exposes only has_edit_password', r.ok && r.data.users.every((x) => x.has_edit_password === true) &&
+    !/edit_hash|edit_salt|edit_iterations|password_hash|"salt"/.test(usersJson) && usersJson.indexOf(String(uCol(1, 'edit_hash'))) < 0 && usersJson.indexOf(EDIT_A) < 0, r.data);
+  r = post({ action: 'login', username: 'admin', password: 'Brand-New-1' });
+  check('edit password: login / me return only the flag', r.ok && r.data.user.has_edit_password === true && !/edit_hash|edit_salt/.test(JSON.stringify(r.data)) &&
+    !/edit_hash|edit_salt/.test(JSON.stringify(post({ action: 'me', session: S }).data)), r.data);
+  const h1 = String(uCol(1, 'edit_hash'));
+  check('edit password: left empty → unchanged', saveEdit(1, '').ok && saveEdit(1, undefined).ok && String(uCol(1, 'edit_hash')) === h1);
+  gas.logs.length = 0;
+  r = saveEdit(2, EDIT_B + 'x');
+  check('edit password: change → new hash + "เปลี่ยน" audit note', r.ok && gas.logs.some((l) => l.startsWith('LOG WP edit password เปลี่ยน: user safety2')), gas.logs);
+  check('edit password: change back', saveEdit(2, EDIT_B).ok);
 
   gas.stats.sleeps.length = 0;
-  r = post(editBody({ resetPassword: undefined }));
+  r = post(editBody({ editPassword: undefined }));
   check('edit: without password refused', !r.ok && r.code === 'AUTH_FAILED', r);
-  r = post(editBody({ resetPassword: 'wrong' }));
-  check('edit: wrong password refused', !r.ok && r.code === 'AUTH_FAILED' && /ไม่ถูกต้อง/.test(r.error), r);
+  r = post(editBody({ editPassword: RESET_PW }));
+  check('edit: the shared reset password is refused', !r.ok && r.code === 'AUTH_FAILED' && /ไม่ถูกต้อง/.test(r.error), r);
   check('edit: wrong password sleeps 1s', gas.stats.sleeps.length === 2 && gas.stats.sleeps[1] === 1000);
+  r = post(editBody({ editPassword: EDIT_B }));
+  check('edit: another จป.\'s edit password is refused', !r.ok && r.code === 'AUTH_FAILED', r);
+  r = post(editBody({ editPassword: undefined, resetPassword: RESET_PW }));
+  check('edit: resetPassword field is ignored', !r.ok && r.code === 'AUTH_FAILED', r);
   r = post({ action: 'delete', session: S, id: P4.id });
   check('delete: without password refused', !r.ok && r.code === 'AUTH_FAILED', r);
-  r = post({ action: 'delete', session: S, id: P4.id, resetPassword: 'wrong' });
-  check('delete: wrong password refused', !r.ok && r.code === 'AUTH_FAILED', r);
+  r = post({ action: 'delete', session: S, id: P4.id, resetPassword: EDIT_A });
+  check('delete: an edit password is not the reset password', !r.ok && r.code === 'AUTH_FAILED', r);
   check('edit/delete: nothing changed after password failures', rowOf(P4.id) === p4Before && logRows() === logsBefore0 && post({ action: 'permit', no: P4.permit_no, t: P4.token }).ok);
-  // shared lockout with reset_data: 4 failures so far + 3 via reset + 3 via edit → 10
+  // reset / delete keep their shared counter: 2 failures so far + 3 via reset + 5 via delete → 10
   for (let i = 0; i < 3; i++) post({ action: 'reset_data', session: S, resetPassword: 'bad' + i });
-  for (let i = 0; i < 3; i++) post(editBody({ resetPassword: 'bad' + i }));
-  r = post(editBody());
-  check('edit: locked by shared counter (right password)', !r.ok && r.code === 'LOCKED', r);
+  for (let i = 0; i < 5; i++) post({ action: 'delete', session: S, id: P4.id, resetPassword: 'bad' + i });
   check('delete: locked by shared counter', post({ action: 'delete', session: S, id: P4.id, resetPassword: RESET_PW }).code === 'LOCKED');
-  check('reset: locked by failures made via edit/delete', post({ action: 'reset_data', session: S, resetPassword: RESET_PW }).code === 'LOCKED');
-  check('edit/delete lockout does not lock login', post({ action: 'login', username: 'admin', password: 'Brand-New-1' }).ok);
+  check('reset: locked by failures made via delete', post({ action: 'reset_data', session: S, resetPassword: RESET_PW }).code === 'LOCKED');
+  // the password is checked before validation, so a validation error means the password passed
+  r = post(editBody({ company: 'X' }));
+  check('edit: not locked by the reset/delete counter', !r.ok && r.code === 'BAD_REQUEST', r);
+  // per-user edit lockout (the accepted password above cleared the counter): 10 failures
+  for (let i = 0; i < 10; i++) post(editBody({ editPassword: 'bad' + i }));
+  r = post(editBody());
+  check('edit: locked after 10 wrong edit passwords (right password)', !r.ok && r.code === 'LOCKED' && /รหัสแก้ไขข้อมูล/.test(r.error), r);
+  const S2e = post({ action: 'login', username: 'safety2', password: 'new-pass-2' }).data.session;
+  r = post(editBody({ session: S2e, editPassword: EDIT_B, company: 'X' }));
+  check('edit lockout is per user (other จป. not locked)', !r.ok && r.code === 'BAD_REQUEST', r);
+  check('edit lockout does not lock login', post({ action: 'login', username: 'admin', password: 'Brand-New-1' }).ok);
   check('nothing changed while locked', rowOf(P4.id) === p4Before && logRows() === logsBefore0);
   gas.clock.offset += 16 * 60 * 1000;
 
@@ -404,11 +455,19 @@ module.exports = function run() {
   check('edit: planned end recomputed from new date/time (overnight)', ep && ep.end_ts === BKK('2026-10-08T04:00:00') / 1000 && ep.es === 'pending');
   const editLog = e4 && e4.logs[e4.logs.length - 1];
   check('edit: log row "แก้ไขข้อมูล" with admin name and changed fields', editLog && editLog.action === 'edit' && editLog.by_name === 'ผู้ดูแลระบบ จป.' &&
-    /^แก้ไขข้อมูล: /.test(editLog.note) && /บริษัท \(พื้นที่\)/.test(editLog.note) && /สถานที่ปฏิบัติงาน/.test(editLog.note) && !/คำนำหน้า/.test(editLog.note) && logRows() === logsBefore0 + 1, editLog);
+    /^แก้ไขข้อมูล: /.test(editLog.note) && /บริษัท \(พื้นที่\)/.test(editLog.note) && /สถานที่ปฏิบัติงาน/.test(editLog.note) && !/คำนำหน้า/.test(editLog.note) &&
+    / — แก้ไขโดย จป\. ผู้ดูแลระบบ จป\.$/.test(editLog.note) && logRows() === logsBefore0 + 1, editLog);
+  {
+    const S2l = post({ action: 'login', username: 'safety2', password: 'new-pass-2' }).data.session;
+    const x = post(editBody({ session: S2l, editPassword: EDIT_B, location: 'แก้โดย จป. สอง' }));
+    const l2 = post({ action: 'permit', session: S, id: P4.id }).data.logs.slice(-1)[0];
+    check('edit by another จป. with own edit password: log names that จป.', x.ok && x.data.changed.join() === 'location' && l2.by_name === 'จป. สอง' && l2.note === 'แก้ไขข้อมูล: สถานที่ปฏิบัติงาน — แก้ไขโดย จป. จป. สอง', { x, l2 });
+    check('edit back by admin', post(editBody()).ok && logRows() === logsBefore0 + 3);
+  }
   check('edit: other permits untouched', rowOf(P2.id) === p2Before);
   check('edit: no Drive files created, signatures still served', gas.files.size === filesBefore && post({ action: 'permit', session: S, id: P4.id, signs: true }).data.signs.requester.startsWith('data:image/png'));
   r = post(editBody());
-  check('edit: unchanged data → no changes, no log', r.ok && r.data.changed.length === 0 && logRows() === logsBefore0 + 1, r);
+  check('edit: unchanged data → no changes, no log', r.ok && r.data.changed.length === 0 && logRows() === logsBefore0 + 3, r);
   r = post(editBody({ checklist: { g1: true, h1: true } }));
   check('edit: checklist key order is not a change', r.ok && r.data.changed.length === 0, r);
   r = post(editBody({ checklist: { g1: true, h1: true, h2: false, h3: '', h8: { sel: [], other: '' } }, loto: [{ item: 'MDB-2', t_on: '' }, {}, { item: '' }] }));
@@ -612,7 +671,7 @@ module.exports = function run() {
   r = post({
     action: 'batch', session: S, calls: [
       { action: 'decide', id: P7.id, decision: 'approve', sign: SIG }, { action: 'save_review', id: P7.id }, { action: 'delete', id: P7.id, resetPassword: RESET_PW },
-      { action: 'update_permit', id: P7.id, resetPassword: RESET_PW }, { action: 'submit' }, { action: 'login', username: 'admin', password: 'Brand-New-1' },
+      { action: 'update_permit', id: P7.id, editPassword: EDIT_A }, { action: 'submit' }, { action: 'login', username: 'admin', password: 'Brand-New-1' },
       { action: 'file', id: P7.id }, { action: 'batch', calls: [{ action: 'me' }] }]
   });
   check('batch refuses writes / login / file / nested batch', r.ok && r.data.every((x) => !x.ok && x.code === 'NOT_FOUND'), r);

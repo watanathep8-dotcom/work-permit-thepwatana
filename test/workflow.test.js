@@ -94,6 +94,20 @@ module.exports = function run() {
     post({ action: 'users', session: S }).data.users.find((u) => u.id === ids.resp1).roles.join() === 'responsible');
   check('จป. cannot remove own safety role', /จป\. ของตนเอง/.test(post({ action: 'user_save', session: S, id: 1, fullname: 'ผู้ดูแลระบบ จป.', roles: ['responsible'], password: '' }).error));
   post({ action: 'user_save', session: S, id: 1, fullname: 'ผู้ดูแลระบบ จป.', roles: ['safety'], email: 'safety.admin@company.co.th', password: '' });
+  // รหัสแก้ไขข้อมูล belongs to the จป. role only
+  const userOf = (id) => post({ action: 'users', session: S }).data.users.find((u) => u.id === id);
+  r = post({ action: 'user_save', session: S, id: ids.resp1, fullname: 'สมศักดิ์ รับผิดชอบ', position: 'วิศวกร', edit_password: 'fake-edit-resp-1' });
+  check('edit password: refused for a non-จป. user', !r.ok && /เฉพาะผู้ใช้ที่มีบทบาท จป\./.test(r.error) && userOf(ids.resp1).has_edit_password === false, r);
+  r = mk({ username: 'xedit2', fullname: 'X', roles: ['area_owner'], edit_password: 'fake-edit-x2-1' });
+  check('edit password: refused when creating a non-จป. user (nothing created)', !r.ok && /เฉพาะผู้ใช้ที่มีบทบาท จป\./.test(r.error) && !post({ action: 'users', session: S }).data.users.some((u) => u.username === 'xedit2'), r);
+  const oldId = post({ action: 'users', session: S }).data.users.find((u) => u.username === 'oldsafety').id;
+  r = post({ action: 'user_save', session: S, id: oldId, fullname: 'จป. เก่า', roles: ['safety', 'responsible'], edit_password: 'fake-edit-old-1' });
+  check('edit password: set for a จป. (also responsible)', r.ok && userOf(oldId).has_edit_password === true, r);
+  r = post({ action: 'user_save', session: S, id: oldId, fullname: 'จป. เก่า', roles: ['responsible'] });
+  const hcol = uSheet.getDataRange().getValues()[0].indexOf('edit_hash');
+  check('edit password: cleared when the จป. role is removed', r.ok && userOf(oldId).has_edit_password === false &&
+    !uSheet.getDataRange().getValues().find((x, i) => i > 0 && String(x[0]) === String(oldId))[hcol], r);
+  check('edit password: role back → still none (must be set again)', post({ action: 'user_save', session: S, id: oldId, fullname: 'จป. เก่า', roles: ['safety'] }).ok && userOf(oldId).has_edit_password === false);
 
   const login = (u) => { const x = post({ action: 'login', username: u, password: 'pass-' + u }); return x.ok ? x.data.session : null; };
   const SR1 = login('resp1'), SR2 = login('resp2'), SA1 = login('area1'), SA2 = login('area2');
@@ -106,7 +120,7 @@ module.exports = function run() {
 
   // non-safety users: no admin data, no admin actions
   ['poll', 'dashboard', 'permits', 'users', 'save_review', 'decide', 'delete', 'update_permit', 'reset_data', 'user_save', 'user_toggle', 'reassign'].forEach((a) => {
-    const x = post({ action: a, session: SR1, id: L2.id, decision: 'reject', comment: 'x', fullname: 'x', resetPassword: 'x', responsible_id: ids.resp2 });
+    const x = post({ action: a, session: SR1, id: L2.id, decision: 'reject', comment: 'x', fullname: 'x', resetPassword: 'x', editPassword: 'x', edit_password: 'fake-edit-x-1', responsible_id: ids.resp2 });
     check('responsible: ' + a + ' → FORBIDDEN', x.code === 'FORBIDDEN', x);
     check('area owner: ' + a + ' → FORBIDDEN', post({ action: a, session: SA1, id: L2.id }).code === 'FORBIDDEN');
   });

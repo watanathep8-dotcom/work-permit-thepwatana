@@ -45,7 +45,15 @@ module.exports = function run() {
   check('setupSystem creates the optional item_files column', hdr.includes('item_files'));
   const ci = hdr.indexOf('item_files');
   pSheet.data.forEach((row) => row.splice(ci, 1));
+  // ---- users sheet set up before the per-จป. edit password: no edit_* columns
+  const uSheet = ss.getSheetByName('users');
+  ['edit_hash', 'edit_iterations', 'edit_salt'].forEach((h) => { const i = uSheet.data[0].indexOf(h); check('setupSystem creates users.' + h, i >= 0); uSheet.data.forEach((row) => row.splice(i, 1)); });
   G.bumpDataVersion_();
+  const meAdmin = post({ action: 'me', session: S }).data;
+  check('legacy users sheet: has_edit_password false', meAdmin.has_edit_password === false);
+  let ue = post({ action: 'user_save', session: S, id: meAdmin.id, fullname: meAdmin.fullname, position: meAdmin.position, edit_password: 'fake-edit-attach-1' });
+  check('legacy users sheet: edit password saved, columns created on first write', ue.ok && ['edit_salt', 'edit_iterations', 'edit_hash'].every((h) => uSheet.data[0].includes(h)) &&
+    post({ action: 'me', session: S }).data.has_edit_password === true, ue);
 
   const body = (o = {}) => Object.assign({
     action: 'submit', company: D.companies[0], permit_type: 'contractor', work_types: ['general', 'hot', 'height', 'electric', 'chemical'],
@@ -143,7 +151,7 @@ module.exports = function run() {
 
   // ================================================================ edit keeps them, delete trashes them
   const before = JSON.stringify(post({ action: 'permit', session: S, id: W.id }).data.permit.item_files);
-  r = post(Object.assign(body({ work_types: ['general'] }), { action: 'update_permit', session: S, id: W.id, resetPassword: 'Reset-Pass-1', item_files: [] }));
+  r = post(Object.assign(body({ work_types: ['general'] }), { action: 'update_permit', session: S, id: W.id, editPassword: 'fake-edit-attach-1', item_files: [] }));
   check('update_permit keeps item files untouched', r.ok && JSON.stringify(post({ action: 'permit', session: S, id: W.id }).data.permit.item_files) === before, r);
   const wStored = JSON.parse(pSheet.data.find((row) => String(row[0]) === String(W.id))[pSheet.data[0].indexOf('item_files')]);
   r = post({ action: 'delete', session: S, id: W.id, resetPassword: 'Reset-Pass-1' });

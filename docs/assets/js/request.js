@@ -1,6 +1,6 @@
 // request.php wizard — ported; submits JSON (+ base64 attachment) to Google Apps Script.
 // Edit mode (request.html?edit=<id>, จป. admin layout): the same wizard pre-filled from
-// the permit, saved with action=update_permit (admin session + reset password).
+// the permit, saved with action=update_permit (จป. session + that จป.'s own edit password).
 // Signatures, attachment, status and approvals are not part of the edit.
 (async () => {
   if (WP.halt) return;
@@ -243,7 +243,7 @@
     editBase = p.updated_at || '';
     WP.setPage('แก้ไขข้อมูลใบอนุญาต ' + p.permit_no, 'list');
     top.className = 'alert warn mb2';
-    top.innerHTML = `<i class="fa-solid fa-pen-to-square"></i><div>กำลังแก้ไขข้อมูลใบอนุญาต <b>${E(p.permit_no)}</b> ${WP.statusBadge(p.es)} — แก้ไขข้อมูลที่ผู้ขอกรอกได้ทุกขั้นตอน แล้วกด <b>บันทึกการแก้ไข</b> (ต้องใช้รหัสผ่าน Reset password)
+    top.innerHTML = `<i class="fa-solid fa-pen-to-square"></i><div>กำลังแก้ไขข้อมูลใบอนุญาต <b>${E(p.permit_no)}</b> ${WP.statusBadge(p.es)} — แก้ไขข้อมูลที่ผู้ขอกรอกได้ทุกขั้นตอน แล้วกด <b>บันทึกการแก้ไข</b> (ต้องใช้รหัสแก้ไขข้อมูลของคุณ — รหัสเฉพาะ จป.)
       <br><a href="${view}"><i class="fa-solid fa-arrow-left"></i> กลับไปหน้าพิจารณาโดยไม่บันทึก</a></div>`;
     const sum = $('#edit-summary');
     sum.className = 'alert info mb2';
@@ -284,7 +284,7 @@
         showCancelButton: true, confirmButtonText: '<i class="fa-solid fa-floppy-disk"></i> บันทึก', cancelButtonText: 'ตรวจสอบอีกครั้ง'
       });
       if (!ok.isConfirmed) return;
-      const r = await WP.withResetPassword('update_permit', Object.assign({ id: editId, base: editBase }, data), `ยืนยันการแก้ไข ${editNo}`);
+      const r = await WP.withEditPassword('update_permit', Object.assign({ id: editId, base: editBase }, data), `ยืนยันการแก้ไข ${editNo}`);
       if (!r) return;
       if (!r.ok) return Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: r.msg });
       await Swal.fire({ icon: 'success', title: r.data.changed.length ? 'บันทึกการแก้ไขเรียบร้อย' : 'ไม่มีข้อมูลที่เปลี่ยนแปลง', timer: 1300, showConfirmButton: false });

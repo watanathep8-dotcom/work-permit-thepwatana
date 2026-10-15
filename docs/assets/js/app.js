@@ -313,15 +313,17 @@
     return rows;
   };
 
-  // ---------- Admin: actions guarded by the reset password (edit / delete) ----------
-  // The password (Script Property WP_RESET_PASSWORD) is asked once and kept in
-  // memory for this page only; it is forgotten on a password error / lockout.
-  let resetPw = null;
-  WP.withResetPassword = async (action, data, title = 'ยืนยันด้วยรหัสผ่าน') => {
-    let pw = resetPw;
+  // ---------- Admin: actions guarded by a second password ----------
+  // delete → the shared reset password (Script Property WP_RESET_PASSWORD), sent as resetPassword.
+  // edit (update_permit) → the logged-in จป.'s OWN edit password (รหัสแก้ไขข้อมูล, set on
+  // หน้าผู้ใช้งาน), sent as editPassword. Each is asked once and kept in memory for this
+  // page only; it is forgotten on a password error / lockout.
+  const kept = {};
+  const withPassword = async (kind, action, data, title, text, field) => {
+    let pw = kept[kind];
     if (!pw) {
       const x = await Swal.fire({
-        icon: 'warning', title, text: 'กรอกรหัสผ่านสำหรับแก้ไข / ลบข้อมูล (Reset password)',
+        icon: 'warning', title, text,
         input: 'password', inputAttributes: { autocomplete: 'off', autocapitalize: 'off' },
         inputValidator: v => !v && 'กรุณากรอกรหัสผ่าน',
         showCancelButton: true, confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626'
@@ -330,13 +332,17 @@
       pw = x.value;
     }
     Swal.fire({ title: 'กำลังบันทึก...', showConfirmButton: false, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    const r = await WP.api(action, Object.assign({}, data, { resetPassword: pw }));
+    const r = await WP.api(action, Object.assign({}, data, { [field]: pw }));
     // The server checks the password before validating anything else, so a
     // validation / not-found error still means the password was right.
-    if (r.ok || ['BAD_REQUEST', 'TOO_LARGE', 'NOT_FOUND', 'CONFLICT'].includes(r.code)) resetPw = pw;
-    else if (['AUTH_FAILED', 'LOCKED', 'SETUP'].includes(r.code)) resetPw = null;
+    if (r.ok || ['BAD_REQUEST', 'TOO_LARGE', 'NOT_FOUND', 'CONFLICT'].includes(r.code)) kept[kind] = pw;
+    else if (['AUTH_FAILED', 'LOCKED', 'SETUP', 'NO_EDIT_PASSWORD'].includes(r.code)) kept[kind] = null;
     return r;
   };
+  WP.withResetPassword = (action, data, title = 'ยืนยันด้วยรหัสผ่าน') =>
+    withPassword('reset', action, data, title, 'กรอกรหัสผ่านสำหรับลบข้อมูล (Reset password)', 'resetPassword');
+  WP.withEditPassword = (action, data, title = 'ยืนยันการแก้ไข') =>
+    withPassword('edit', action, data, title, 'กรอกรหัสแก้ไขข้อมูลของคุณ (รหัสเฉพาะ จป. ที่ผู้ดูแลระบบตั้งให้ — ไม่ใช่ Reset password)', 'editPassword');
   /** Confirm (naming the permit no), ask the reset password, delete. Resolves true when deleted. */
   WP.deletePermit = async (id, permitNo) => {
     const no = WP.esc(permitNo);

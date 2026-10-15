@@ -116,7 +116,9 @@ module.exports = function run() {
   G.bumpDataVersion_();
   p = post({ action: 'permit', session: S, id: O.id }).data.permit;
   check('old row: read as stored (the page upgrades it for display)', JSON.stringify(p.checklist) === JSON.stringify(v1));
-  const editBody = (o = {}) => Object.assign(body(), { action: 'update_permit', session: S, id: O.id, resetPassword: 'Reset-Pass-1' }, o);
+  const meAdmin = post({ action: 'me', session: S }).data;
+  check('admin sets own edit password', post({ action: 'user_save', session: S, id: meAdmin.id, fullname: meAdmin.fullname, position: meAdmin.position, edit_password: 'fake-edit-form-1' }).ok);
+  const editBody = (o = {}) => Object.assign(body(), { action: 'update_permit', session: S, id: O.id, editPassword: 'fake-edit-form-1' }, o);
   r = post(editBody({ checklist: undefined }));
   check('old row: edit without checklist → no change (stored v1 compares upgraded)', r.ok && r.data.changed.length === 0, r);
   r = post(editBody({ checklist: U(JSON.parse(JSON.stringify(v1))) }));
